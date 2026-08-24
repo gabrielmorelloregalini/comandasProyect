@@ -1,8 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "env": {
-    "TZ": "America/Argentina/Buenos_Aires"
-  },
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }
   ]
