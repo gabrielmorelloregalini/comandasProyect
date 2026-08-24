@@ -1,21 +1,22 @@
 import datetime
 import os
 import secrets
-import sqlite3
 import threading
 from flask import Flask, abort, g, jsonify, make_response, redirect, render_template, request, url_for
+
+from db import IntegrityError as DBIntegrityError, USE_POSTGRES, connect
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "scau.db")
 
 # ============ CONFIGURACION ============
 # Alias de Mercado Pago que se muestra junto al total de la comanda.
-MP_ALIAS = "scau.ejemplo.alias"
+MP_ALIAS = os.environ.get("MP_ALIAS", "scau.ejemplo.alias")
 # Contrasena para entrar a /caja (cambiala a gusto).
-CAJA_PASSWORD = "soylacaja"
+CAJA_PASSWORD = os.environ.get("CAJA_PASSWORD", "soylacaja")
 # =======================================
 
-_CAJA_TOKEN = secrets.token_urlsafe(32)
+_CAJA_TOKEN = os.environ.get("CAJA_TOKEN") or secrets.token_urlsafe(32)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS producto (
@@ -55,6 +56,7 @@ CREATE TABLE IF NOT EXISTS pedido (
     estado TEXT NOT NULL DEFAULT 'pendiente',
     creado_en TEXT NOT NULL,
     token TEXT UNIQUE,
+    metodo_pago TEXT,
     FOREIGN KEY (mesero_id) REFERENCES mesero(id),
     FOREIGN KEY (mesa_id) REFERENCES mesa(id)
 );
@@ -97,12 +99,7 @@ def bad_request(e):
 
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB_PATH, timeout=10)
-        g.db.row_factory = sqlite3.Row
-        g.db.execute("PRAGMA foreign_keys = ON")
-        g.db.execute("PRAGMA journal_mode = WAL")
-        g.db.execute("PRAGMA synchronous = NORMAL")
-        g.db.execute("PRAGMA busy_timeout = 10000")
+        g.db = connect(DB_PATH)
     return g.db
 
 
@@ -132,19 +129,21 @@ def migrar_db(db):
 
 
 def init_db():
-    db = sqlite3.connect(DB_PATH, timeout=10)
-    migrar_db(db)
+    db = connect(DB_PATH)
+    if not USE_POSTGRES:
+        migrar_db(db)
     db.executescript(SCHEMA)
-    cols_pedido = [r[1] for r in db.execute("PRAGMA table_info(pedido)").fetchall()]
-    if "token" not in cols_pedido:
-        db.execute("ALTER TABLE pedido ADD COLUMN token TEXT")
-        db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_pedido_token ON pedido(token)")
-    if "metodo_pago" not in cols_pedido:
-        db.execute("ALTER TABLE pedido ADD COLUMN metodo_pago TEXT")
-    cols_item = [r[1] for r in db.execute("PRAGMA table_info(item_pedido)").fetchall()]
-    if "aderezos" not in cols_item:
-        db.execute("ALTER TABLE item_pedido ADD COLUMN aderezos TEXT")
-    if db.execute("SELECT COUNT(*) FROM producto").fetchone()[0] == 0:
+    if not USE_POSTGRES:
+        cols_pedido = [r[1] for r in db.execute("PRAGMA table_info(pedido)").fetchall()]
+        if "token" not in cols_pedido:
+            db.execute("ALTER TABLE pedido ADD COLUMN token TEXT")
+            db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_pedido_token ON pedido(token)")
+        if "metodo_pago" not in cols_pedido:
+            db.execute("ALTER TABLE pedido ADD COLUMN metodo_pago TEXT")
+        cols_item = [r[1] for r in db.execute("PRAGMA table_info(item_pedido)").fetchall()]
+        if "aderezos" not in cols_item:
+            db.execute("ALTER TABLE item_pedido ADD COLUMN aderezos TEXT")
+    if db.execute("SELECT COUNT(*) AS n FROM producto").fetchone()["n"] == 0:
         db.executemany(
             "INSERT INTO producto (nombre, precio) VALUES (?, ?)",
             [
@@ -157,18 +156,18 @@ def init_db():
                 ("Agua (500ml)", 1000),
             ],
         )
-    if db.execute("SELECT COUNT(*) FROM mesa").fetchone()[0] == 0:
+    if db.execute("SELECT COUNT(*) AS n FROM mesa").fetchone()["n"] == 0:
         for i in range(1, 7):
             db.execute("INSERT INTO mesa (nombre) VALUES (?)", (f"Mesa {i}",))
-    if db.execute("SELECT COUNT(*) FROM mesero").fetchone()[0] == 0:
+    if db.execute("SELECT COUNT(*) AS n FROM mesero").fetchone()["n"] == 0:
         meseros = [("Mesero 1", 1), ("Mesero 2", 3), ("Mesero 3", 5)]
         for nombre, mesa_id in meseros:
-            cur = db.execute("INSERT INTO mesero (nombre) VALUES (?)", (nombre,))
+            mid = db.insert("INSERT INTO mesero (nombre) VALUES (?)", (nombre,))
             db.execute(
                 "INSERT INTO mesero_mesa (mesero_id, mesa_id) VALUES (?, ?)",
-                (cur.lastrowid, mesa_id),
+                (mid, mesa_id),
             )
-    if db.execute("SELECT COUNT(*) FROM aderezo").fetchone()[0] == 0:
+    if db.execute("SELECT COUNT(*) AS n FROM aderezo").fetchone()["n"] == 0:
         db.executemany(
             "INSERT INTO aderezo (nombre) VALUES (?)",
             [
@@ -281,16 +280,15 @@ def validar_aderezos_ids(db, aderezos, extra_clase=None):
     ids = [int(a) for a in (aderezos or [])]
     if not ids:
         return []
-    marca = "SELECT COUNT(*) FROM aderezo WHERE id=? AND activo=1"
+    marca = "SELECT COUNT(*) AS n FROM aderezo WHERE id=? AND activo=1"
     for aid in ids:
-        if db.execute(marca, (aid,)).fetchone()[0] == 0:
+        if db.execute(marca, (aid,)).fetchone()["n"] == 0:
             abort(400, "Aderezo invalido")
     return ids
 
 
 def crear_producto(db, nombre, precio, aderezos_ids):
-    cur = db.execute("INSERT INTO producto (nombre, precio) VALUES (?, ?)", (nombre, precio))
-    pid = cur.lastrowid
+    pid = db.insert("INSERT INTO producto (nombre, precio) VALUES (?, ?)", (nombre, precio))
     for aid in aderezos_ids:
         db.execute(
             "INSERT OR IGNORE INTO producto_aderezo (producto_id, aderezo_id) VALUES (?, ?)",
@@ -371,9 +369,9 @@ def api_crear_aderezo():
     if not nombre:
         abort(400, "Datos invalidos")
     db = get_db()
-    cur = db.execute("INSERT INTO aderezo (nombre) VALUES (?)", (nombre,))
+    aid = db.insert("INSERT INTO aderezo (nombre) VALUES (?)", (nombre,))
     db.commit()
-    return jsonify({"id": cur.lastrowid})
+    return jsonify({"id": aid})
 
 
 @app.put("/api/aderezos/<int:aid>")
@@ -412,9 +410,9 @@ def api_crear_mesa():
     if not nombre:
         abort(400, "Datos invalidos")
     db = get_db()
-    cur = db.execute("INSERT INTO mesa (nombre) VALUES (?)", (nombre,))
+    mid = db.insert("INSERT INTO mesa (nombre) VALUES (?)", (nombre,))
     db.commit()
-    return jsonify({"id": cur.lastrowid})
+    return jsonify({"id": mid})
 
 
 @app.put("/api/mesas/<int:mid>")
@@ -461,8 +459,7 @@ def api_crear_mesero():
     if not nombre:
         abort(400, "Datos invalidos")
     db = get_db()
-    cur = db.execute("INSERT INTO mesero (nombre) VALUES (?)", (nombre,))
-    cid = cur.lastrowid
+    cid = db.insert("INSERT INTO mesero (nombre) VALUES (?)", (nombre,))
     for m in mesas:
         db.execute("INSERT OR IGNORE INTO mesero_mesa (mesero_id, mesa_id) VALUES (?, ?)", (cid, m))
     db.commit()
@@ -582,12 +579,12 @@ def api_crear_pedido():
     with _PEDIDO_LOCK:
         numero = generar_numero()
         try:
-            cur = db.execute(
+            pid = db.insert(
                 "INSERT INTO pedido (numero, mesero_id, mesa_id, comprador, total, estado, creado_en, token, metodo_pago) "
                 "VALUES (?, ?, ?, ?, ?, 'pendiente', ?, ?, ?)",
                 (numero, mesero_id, mesa_id, comprador, total, creado, token, metodo_pago),
             )
-        except sqlite3.IntegrityError:
+        except DBIntegrityError:
             db.rollback()
             if token:
                 existente = db.execute(
@@ -601,7 +598,6 @@ def api_crear_pedido():
                         "duplicado": True,
                     })
             raise
-        pid = cur.lastrowid
         for nombre, precio, cantidad, aderezos in detalle:
             db.execute(
                 "INSERT INTO item_pedido (pedido_id, nombre, precio, cantidad, aderezos) VALUES (?, ?, ?, ?, ?)",
