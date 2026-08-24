@@ -53,7 +53,7 @@ function filtrarComanda(p) {
 
 async function cargar() {
   try {
-    const res = await fetch("/api/pedidos");
+    const res = await fetch("/api/pedidos?estado=cobrado&limit=500");
     const pedidos = await res.json();
     const ocultos = getOcultos();
     const porPreparar = pedidos

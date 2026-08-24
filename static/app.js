@@ -340,7 +340,7 @@ function renderMisPedidos(pedidos) {
 async function actualizarMisPedidos() {
   if (!MESERO || vistaPedidos.classList.contains("oculto")) return;
   try {
-    const pedidos = await api("/api/pedidos?mesero_id=" + MESERO.id);
+    const pedidos = await api("/api/pedidos?mesero_id=" + MESERO.id + "&limit=200");
     renderMisPedidos(pedidos);
   } catch (_) {}
 }

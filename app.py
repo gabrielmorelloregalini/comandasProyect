@@ -215,34 +215,62 @@ def generar_numero():
         n += 1
 
 
-def pedido_a_dict(row):
-    db = get_db()
-    items = db.execute(
-        "SELECT nombre, precio, cantidad, aderezos FROM item_pedido WHERE pedido_id=?",
-        (row["id"],),
-    ).fetchall()
-    mesero = db.execute("SELECT nombre FROM mesero WHERE id=?", (row["mesero_id"],)).fetchone()
-    mesa = db.execute("SELECT nombre FROM mesa WHERE id=?", (row["mesa_id"],)).fetchone()
-    return {
-        "id": row["id"],
-        "numero": row["numero"],
-        "mesero": mesero["nombre"] if mesero else "-",
-        "mesa": mesa["nombre"] if mesa else "-",
-        "comprador": row["comprador"],
-        "total": row["total"],
-        "estado": row["estado"],
-        "metodo_pago": row["metodo_pago"],
-        "creado_en": row["creado_en"],
-        "items": [
-            {
-                "nombre": i["nombre"],
-                "precio": i["precio"],
-                "cantidad": i["cantidad"],
-                "aderezos": (i["aderezos"].split(",") if i["aderezos"] else []),
-            }
-            for i in items
-        ],
+ESTADOS_PEDIDO = ("pendiente", "cobrado", "cancelado")
+
+
+def _placeholders(n):
+    return ",".join(["?"] * n)
+
+
+def pedidos_a_dicts(db, filas):
+    """Convierte filas de pedido a dicts con sus items, mesero y mesa.
+    Hace 3 consultas en total (por lotes) en vez de 3 por pedido."""
+    if not filas:
+        return []
+    ids = [f["id"] for f in filas]
+    items_por_pedido = {}
+    for i in db.execute(
+        f"SELECT pedido_id, nombre, precio, cantidad, aderezos FROM item_pedido WHERE pedido_id IN ({_placeholders(len(ids))})",
+        ids,
+    ).fetchall():
+        items_por_pedido.setdefault(i["pedido_id"], []).append(i)
+    mesero_ids = sorted({f["mesero_id"] for f in filas})
+    mesa_ids = sorted({f["mesa_id"] for f in filas})
+    nombres_meseros = {
+        m["id"]: m["nombre"]
+        for m in db.execute(
+            f"SELECT id, nombre FROM mesero WHERE id IN ({_placeholders(len(mesero_ids))})", mesero_ids
+        ).fetchall()
     }
+    nombres_mesas = {
+        m["id"]: m["nombre"]
+        for m in db.execute(
+            f"SELECT id, nombre FROM mesa WHERE id IN ({_placeholders(len(mesa_ids))})", mesa_ids
+        ).fetchall()
+    }
+    resultado = []
+    for row in filas:
+        resultado.append({
+            "id": row["id"],
+            "numero": row["numero"],
+            "mesero": nombres_meseros.get(row["mesero_id"], "-"),
+            "mesa": nombres_mesas.get(row["mesa_id"], "-"),
+            "comprador": row["comprador"],
+            "total": row["total"],
+            "estado": row["estado"],
+            "metodo_pago": row["metodo_pago"],
+            "creado_en": row["creado_en"],
+            "items": [
+                {
+                    "nombre": i["nombre"],
+                    "precio": i["precio"],
+                    "cantidad": i["cantidad"],
+                    "aderezos": (i["aderezos"].split(",") if i["aderezos"] else []),
+                }
+                for i in items_por_pedido.get(row["id"], [])
+            ],
+        })
+    return resultado
 
 
 # ============ PAGINAS ============
@@ -532,13 +560,28 @@ def api_borrar_mesero(cid):
 def api_listar_pedidos():
     db = get_db()
     mesero_id = request.args.get("mesero_id", type=int)
+    estados_arg = (request.args.get("estado") or "").strip()
+    estados = [e for e in (x.strip() for x in estados_arg.split(",")) if e in ESTADOS_PEDIDO] if estados_arg else []
+    try:
+        limite = int(request.args.get("limit", 200))
+    except (TypeError, ValueError):
+        limite = 200
+    limite = max(1, min(limite, 1000))
+
+    where, params = [], []
     if mesero_id is not None:
-        filas = db.execute(
-            "SELECT * FROM pedido WHERE mesero_id=? ORDER BY id DESC", (mesero_id,)
-        ).fetchall()
-    else:
-        filas = db.execute("SELECT * FROM pedido ORDER BY id DESC").fetchall()
-    return jsonify([pedido_a_dict(f) for f in filas])
+        where.append("mesero_id=?")
+        params.append(mesero_id)
+    if estados:
+        where.append(f"estado IN ({_placeholders(len(estados))})")
+        params.extend(estados)
+    sql = "SELECT * FROM pedido"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY id DESC LIMIT ?"
+    params.append(limite)
+    filas = db.execute(sql, params).fetchall()
+    return jsonify(pedidos_a_dicts(db, filas))
 
 
 @app.post("/api/pedidos")

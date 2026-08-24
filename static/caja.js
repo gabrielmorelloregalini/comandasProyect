@@ -121,7 +121,7 @@ function filtrarComanda(p) {
 
 async function cargarComandas() {
   try {
-    const pedidos = await api("/api/pedidos");
+    const pedidos = await api("/api/pedidos?estado=pendiente,cobrado,cancelado&limit=300");
     const lista = $("#lista-comandas");
     const filtrados = pedidos.filter(filtrarComanda);
     if (filtrados.length === 0) {
