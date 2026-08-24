@@ -26,7 +26,7 @@ function cambiarPestana(nombre) {
   document.querySelectorAll(".pestana").forEach((b) => {
     b.classList.toggle("btn-primario", b.dataset.pestana === nombre);
   });
-  ["comandas", "ventas", "productos", "aderezos", "mesas", "meseros"].forEach((p) => {
+  ["comandas", "ventas", "productos", "aderezos", "mesas", "meseros", "alias"].forEach((p) => {
     $("#pestana-" + p).classList.toggle("oculto", p !== nombre);
   });
   if (nombre === "comandas") cargarComandas();
@@ -35,6 +35,7 @@ function cambiarPestana(nombre) {
   if (nombre === "aderezos") cargarAderezos();
   if (nombre === "mesas") cargarMesas();
   if (nombre === "meseros") { cargarMeseros(); cargarMesasParaMeseros(); }
+  if (nombre === "alias") cargarAlias();
 }
 
 document.querySelectorAll(".pestana").forEach((b) => {
@@ -536,6 +537,28 @@ $("#mesero-cancelar").addEventListener("click", () => {
   $("#mesero-cancelar").classList.add("oculto");
   $("#form-mesero").reset();
   renderOpcionesMesas(mesasGlobal, new Set());
+});
+
+// ---------- Alias Mercado Pago ----------
+async function cargarAlias() {
+  try {
+    const cfg = await api("/api/config");
+    ALIAS = cfg.alias || "";
+    $("#alias-mp").value = ALIAS;
+  } catch (e) { alert("Error: " + e.message); }
+}
+
+$("#form-alias").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const alias = $("#alias-mp").value.trim();
+  if (!alias) return;
+  const btn = $("#alias-guardar");
+  try {
+    await api("/api/config", { method: "PUT", body: JSON.stringify({ alias }) });
+    ALIAS = alias;
+    btn.textContent = "Guardado";
+    setTimeout(() => { btn.textContent = "Guardar alias"; }, 1500);
+  } catch (err) { alert("Error: " + err.message); }
 });
 
 // ---------- Init ----------

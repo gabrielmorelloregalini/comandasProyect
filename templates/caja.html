@@ -21,6 +21,7 @@
     <button class="btn pestana" data-pestana="aderezos">Aderezos</button>
     <button class="btn pestana" data-pestana="mesas">Mesas</button>
     <button class="btn pestana" data-pestana="meseros">Meseros</button>
+    <button class="btn pestana" data-pestana="alias">Alias MP</button>
   </div>
 
   <!-- PESTANA COMANDAS -->
@@ -149,8 +150,24 @@
     </table>
   </section>
 
+  <!-- PESTANA ALIAS -->
+  <section id="pestana-alias" class="oculto">
+    <h2 class="seccion-titulo">Alias de Mercado Pago</h2>
+    <div class="tarjeta">
+      <form id="form-alias" autocomplete="off">
+        <div class="campo">
+          <label for="alias-mp">Alias (es el que ven los meseros al cobrar)</label>
+          <input type="text" id="alias-mp" maxlength="60" placeholder="scau.ejemplo.alias" required>
+        </div>
+        <div class="fila-accion">
+          <button type="submit" class="btn btn-primario" id="alias-guardar">Guardar alias</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
 </main>
 
-<script src="/static/caja.js?v=3"></script>
+<script src="/static/caja.js?v=4"></script>
 </body>
 </html>

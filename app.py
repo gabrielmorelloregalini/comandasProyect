@@ -13,7 +13,7 @@ DB_PATH = os.path.join(BASE_DIR, "scau.db")
 # Alias de Mercado Pago que se muestra junto al total de la comanda.
 MP_ALIAS = os.environ.get("MP_ALIAS", "scau.ejemplo.alias")
 # Contrasena para entrar a /caja (cambiala a gusto).
-CAJA_PASSWORD = os.environ.get("CAJA_PASSWORD", "soylacaja")
+CAJA_PASSWORD = "soylacaja"
 # =======================================
 
 _CAJA_TOKEN = os.environ.get("CAJA_TOKEN") or secrets.token_urlsafe(32)
@@ -83,6 +83,11 @@ CREATE TABLE IF NOT EXISTS producto_aderezo (
     PRIMARY KEY (producto_id, aderezo_id),
     FOREIGN KEY (producto_id) REFERENCES producto(id),
     FOREIGN KEY (aderezo_id) REFERENCES aderezo(id)
+);
+
+CREATE TABLE IF NOT EXISTS configuracion (
+    clave TEXT PRIMARY KEY,
+    valor TEXT NOT NULL
 );
 """
 
@@ -185,6 +190,12 @@ def init_db():
 init_db()
 
 
+def get_alias():
+    db = get_db()
+    fila = db.execute("SELECT valor FROM configuracion WHERE clave=?", ("mp_alias",)).fetchone()
+    return fila["valor"] if fila else MP_ALIAS
+
+
 def generar_numero():
     db = get_db()
     base = datetime.datetime.now()
@@ -229,14 +240,14 @@ def pedido_a_dict(row):
 # ============ PAGINAS ============
 @app.get("/")
 def pagina_mesero():
-    return render_template("index.html", mp_alias=MP_ALIAS)
+    return render_template("index.html", mp_alias=get_alias())
 
 
 @app.get("/caja")
 def pagina_caja():
     if request.cookies.get("caja_token") != _CAJA_TOKEN:
         return redirect(url_for("caja_login"))
-    return render_template("caja.html", mp_alias=MP_ALIAS)
+    return render_template("caja.html", mp_alias=get_alias())
 
 
 @app.get("/caja/login")
@@ -256,12 +267,30 @@ def caja_login_post():
 
 @app.get("/cocina")
 def pagina_cocina():
-    return render_template("cocina.html", mp_alias=MP_ALIAS)
+    return render_template("cocina.html", mp_alias=get_alias())
 
 
 @app.get("/api/config")
 def api_config():
-    return jsonify({"alias": MP_ALIAS})
+    return jsonify({"alias": get_alias()})
+
+
+@app.put("/api/config")
+def api_guardar_config():
+    if request.cookies.get("caja_token") != _CAJA_TOKEN:
+        abort(401, "No autorizado")
+    data = request.get_json(force=True)
+    alias = (data.get("alias") or "").strip()
+    if not alias:
+        abort(400, "Alias invalido")
+    db = get_db()
+    db.execute(
+        "INSERT INTO configuracion (clave, valor) VALUES (?, ?) "
+        "ON CONFLICT(clave) DO UPDATE SET valor=EXCLUDED.valor",
+        ("mp_alias", alias),
+    )
+    db.commit()
+    return jsonify({"ok": True, "alias": alias})
 
 
 # ============ PRODUCTOS ============
