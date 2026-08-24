@@ -1,3 +1,4 @@
 flask>=3.0
 waitress>=3.0
 psycopg2-binary>=2.9
+tzdata>=2024.1

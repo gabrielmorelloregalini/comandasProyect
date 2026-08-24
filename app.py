@@ -2,12 +2,20 @@ import datetime
 import os
 import secrets
 import threading
+from zoneinfo import ZoneInfo
+
 from flask import Flask, abort, g, jsonify, make_response, redirect, render_template, request, url_for
 
 from db import IntegrityError as DBIntegrityError, USE_POSTGRES, connect
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "scau.db")
+TZ = ZoneInfo("America/Argentina/Buenos_Aires")
+
+
+def ahora():
+    """Hora local argentina, sin importar la zona del servidor."""
+    return datetime.datetime.now(TZ)
 
 # ============ CONFIGURACION ============
 # Alias de Mercado Pago que se muestra junto al total de la comanda.
@@ -198,7 +206,7 @@ def get_alias():
 
 def generar_numero():
     db = get_db()
-    base = datetime.datetime.now()
+    base = ahora().replace(tzinfo=None)
     n = 0
     while True:
         num = (base + datetime.timedelta(seconds=n)).strftime("%H%M%S")
@@ -604,7 +612,7 @@ def api_crear_pedido():
     if not detalle:
         abort(400, "El pedido esta vacio")
 
-    creado = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    creado = ahora().strftime("%Y-%m-%d %H:%M:%S")
     with _PEDIDO_LOCK:
         numero = generar_numero()
         try:
