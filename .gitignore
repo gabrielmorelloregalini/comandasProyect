@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 scau.db*
 notas
+
+test_stress/
