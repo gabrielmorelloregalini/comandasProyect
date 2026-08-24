@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comandas - Pedido</title>
+<link rel="stylesheet" href="/static/style.css?v=3">
+</head>
+<body>
+<header class="barra">
+  <h1>Comandas del evento</h1>
+  <div class="sub" id="sub-barra">Tomar pedidos</div>
+  <div class="barra-links">
+    <button class="btn btn-borde btn-barralink" id="btn-mis-pedidos">Ver mis pedidos</button>
+  </div>
+</header>
+
+<main class="contenedor-mesero">
+
+  <!-- Paso 1: elegir quien sos -->
+  <section id="vista-login">
+    <h2 class="seccion-titulo">¿Quien sos?</h2>
+    <div class="aviso">Elegí tu nombre para empezar a tomar pedidos.</div>
+    <div class="lista-meseros" id="lista-meseros"></div>
+  </section>
+
+  <!-- Paso 2: tomar pedido -->
+  <section id="vista-pedido" class="oculto">
+    <div class="fila-accion" style="margin-bottom:10px;">
+      <div class="tarjeta" style="flex:1;margin:0;">
+        <b id="mi-nombre"></b>
+        <div class="comanda-meta" style="margin:2px 0 0;">
+          <span>Atendiendo: <b id="mi-mesa"></b></span>
+        </div>
+      </div>
+      <button class="btn btn-borde" id="btn-cambiar">Cambiar</button>
+    </div>
+
+    <div class="campo">
+      <label for="input-comprador">Nombre del comensal</label>
+      <input type="text" id="input-comprador" maxlength="60" placeholder="Nombre del que pide">
+    </div>
+
+    <div class="campo">
+      <label for="select-mesa">Mesa</label>
+      <select id="select-mesa"></select>
+      <div id="aviso-sin-mesas" class="aviso oculto">No tenés mesas asignadas. Avisale a caja.</div>
+    </div>
+
+    <h2 class="seccion-titulo">Menu</h2>
+    <div class="menu-lista" id="menu-lista"></div>
+
+    <div class="pie-accion">
+      <div id="resumen-carrito"></div>
+      <button class="btn btn-primario btn-grande" id="btn-enviar" disabled>Confirmar pedido</button>
+    </div>
+  </section>
+
+  <!-- Paso 3: mis pedidos -->
+  <section id="vista-pedidos" class="oculto">
+    <h2 class="seccion-titulo">
+      <span>Mis pedidos</span>
+      <button class="btn btn-borde" id="btn-nuevo-pedido">Nuevo pedido</button>
+    </h2>
+    <div id="mis-pedidos-lista"><div class="vacio">Todavía no tomaste pedidos.</div></div>
+  </section>
+
+</main>
+
+<!-- Modal de aderezos (por unidad) -->
+<div id="modal-aderezos" class="modal-fondo oculto">
+  <div class="modal modal-izquierda">
+    <div class="etiqueta-aderezos">Aderezos para</div>
+    <div class="grande-aderezos" id="modal-aderezos-producto"></div>
+    <div id="modal-aderezos-opciones" class="aderezos-opciones"></div>
+    <label class="producto opcion-sin-aderezo">
+      <span class="info"><span class="nombre">Sin aderezo</span></span>
+      <input type="checkbox" id="chk-sin-aderezo" checked>
+    </label>
+    <div class="fila-accion">
+      <button class="btn btn-primario" id="btn-aderezos-ok">Agregar</button>
+      <button class="btn btn-borde" id="btn-aderezos-cancelar">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de pago (efectivo/transferencia) -->
+<div id="modal-pago" class="modal-fondo oculto">
+  <div class="modal modal-izquierda">
+    <div class="etiqueta-aderezos">¿Cómo cobrás?</div>
+    <div class="aderezos-opciones">
+      <label class="producto opcion-opcion">
+        <span class="info"><span class="nombre">Efectivo</span></span>
+        <input type="radio" name="metodo-pago" value="efectivo">
+      </label>
+      <label class="producto opcion-opcion">
+        <span class="info"><span class="nombre">Transferencia</span></span>
+        <input type="radio" name="metodo-pago" value="transferencia">
+      </label>
+    </div>
+    <div class="fila-accion">
+      <button class="btn btn-primario" id="btn-pago-ok" disabled>Confirmar y enviar</button>
+      <button class="btn btn-borde" id="btn-pago-cancelar">Volver</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de confirmacion -->
+<div id="modal-confirmar" class="modal-fondo oculto">
+  <div class="modal">
+    <div class="check">Listo</div>
+    <p>Pedido enviado. Numero de pedido:</p>
+    <div class="grande" id="modal-numero"></div>
+    <p>Total a cobrar:</p>
+    <div style="font-size:1.5rem;font-weight:800;" id="modal-total"></div>
+    <div class="alias-box">
+      <div class="etiqueta">Alias de Mercado Pago</div>
+      <div class="valor" id="modal-alias"></div>
+    </div>
+    
+    <div class="fila-accion">
+      <button class="btn btn-primario" id="btn-modal-ok">Entendido</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js?v=3"></script>
+</body>
+</html>

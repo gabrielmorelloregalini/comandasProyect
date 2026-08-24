@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comandas - Caja</title>
+<link rel="stylesheet" href="/static/style.css?v=3">
+</head>
+<body>
+<header class="barra">
+  <h1>Caja</h1>
+  <div class="sub">Comandas y administración</div>
+</header>
+
+<main class="container">
+
+  <div class="pestanas">
+    <button class="btn pestana btn-primario" data-pestana="comandas">Comandas</button>
+    <button class="btn pestana" data-pestana="ventas">Ventas</button>
+    <button class="btn pestana" data-pestana="productos">Productos</button>
+    <button class="btn pestana" data-pestana="aderezos">Aderezos</button>
+    <button class="btn pestana" data-pestana="mesas">Mesas</button>
+    <button class="btn pestana" data-pestana="meseros">Meseros</button>
+  </div>
+
+  <!-- PESTANA COMANDAS -->
+  <section id="pestana-comandas">
+    <div class="campo">
+      <input type="text" id="buscador-comandas" placeholder="Buscar por mesero, comprador, mesa o numero..." autocomplete="off">
+    </div>
+    <div class="fila-accion" style="margin:0 0 12px;">
+      <button class="btn filtro btn-borde" data-filtro="pendiente">Pendientes</button>
+      <button class="btn filtro btn-borde" data-filtro="cobrado">Cobradas</button>
+      <button class="btn filtro btn-borde" data-filtro="cancelado">Canceladas</button>
+      <button class="btn filtro btn-borde" data-filtro="todas">Todas</button>
+    </div>
+    <div id="lista-comandas"><div class="vacio">Cargando...</div></div>
+  </section>
+
+  <!-- PESTANA VENTAS -->
+  <section id="pestana-ventas" class="oculto">
+    <h2 class="seccion-titulo">Ventas (cobradas)</h2>
+    <div class="panel-ventas">
+      <div class="tarjeta-venta efectivo">
+        <div class="etiqueta">Efectivo</div>
+        <div class="monto" id="venta-efectivo">$ 0</div>
+      </div>
+      <div class="tarjeta-venta transferencia">
+        <div class="etiqueta">Transferencia</div>
+        <div class="monto" id="venta-transferencia">$ 0</div>
+      </div>
+      <div class="tarjeta-venta total">
+        <div class="etiqueta">Total</div>
+        <div class="monto" id="venta-total">$ 0</div>
+      </div>
+    </div>
+    <div id="venta-sin-registrar" class="aviso oculto"></div>
+  </section>
+
+  <!-- PESTANA PRODUCTOS -->
+  <section id="pestana-productos" class="oculto">
+    <div class="tarjeta">
+      <form id="form-producto" autocomplete="off">
+        <div class="campo">
+          <label for="prod-nombre">Nombre</label>
+          <input type="text" id="prod-nombre" maxlength="60" required>
+        </div>
+        <div class="campo">
+          <label for="prod-precio">Precio ($)</label>
+          <input type="number" id="prod-precio" min="0" step="1" required>
+        </div>
+        <div class="campo">
+          <label>Aderezos habilitados</label>
+          <div id="prod-aderezos-opciones" class="menu-lista"></div>
+        </div>
+        <div class="fila-accion">
+          <button type="submit" class="btn btn-primario" id="prod-guardar">Agregar producto</button>
+          <button type="button" class="btn btn-borde oculto" id="prod-cancelar">Cancelar edición</button>
+        </div>
+      </form>
+    </div>
+    <table class="tabla-abm">
+      <thead><tr><th>Nombre</th><th>Precio</th><th>Aderezos</th><th class="acciones">Acciones</th></tr></thead>
+      <tbody id="tabla-productos"></tbody>
+    </table>
+  </section>
+
+  <!-- PESTANA ADEREZOS -->
+  <section id="pestana-aderezos" class="oculto">
+    <div class="tarjeta">
+      <form id="form-aderezo" autocomplete="off">
+        <div class="campo">
+          <label for="aderezo-nombre">Nombre del aderezo</label>
+          <input type="text" id="aderezo-nombre" maxlength="40" placeholder="Ketchup" required>
+        </div>
+        <div class="fila-accion">
+          <button type="submit" class="btn btn-primario" id="aderezo-guardar">Agregar aderezo</button>
+          <button type="button" class="btn btn-borde oculto" id="aderezo-cancelar">Cancelar edición</button>
+        </div>
+      </form>
+    </div>
+    <table class="tabla-abm">
+      <thead><tr><th>Aderezo</th><th class="acciones">Acciones</th></tr></thead>
+      <tbody id="tabla-aderezos"></tbody>
+    </table>
+  </section>
+
+  <!-- PESTANA MESAS -->
+  <section id="pestana-mesas" class="oculto">
+    <div class="tarjeta">
+      <form id="form-mesa" autocomplete="off">
+        <div class="campo">
+          <label for="mesa-nombre">Nombre de la mesa</label>
+          <input type="text" id="mesa-nombre" maxlength="40" placeholder="Mesa 7" required>
+        </div>
+        <div class="fila-accion">
+          <button type="submit" class="btn btn-primario" id="mesa-guardar">Agregar mesa</button>
+          <button type="button" class="btn btn-borde oculto" id="mesa-cancelar">Cancelar edición</button>
+        </div>
+      </form>
+    </div>
+    <table class="tabla-abm">
+      <thead><tr><th>Mesa</th><th class="acciones">Acciones</th></tr></thead>
+      <tbody id="tabla-mesas"></tbody>
+    </table>
+  </section>
+
+  <!-- PESTANA MESEROS -->
+  <section id="pestana-meseros" class="oculto">
+    <div class="tarjeta">
+      <form id="form-mesero" autocomplete="off">
+        <div class="campo">
+          <label for="mesero-nombre">Nombre del mesero</label>
+          <input type="text" id="mesero-nombre" maxlength="60" required>
+        </div>
+        <div class="campo">
+          <label>Mesas asignadas</label>
+          <div id="mesero-mesas-opciones" class="menu-lista"></div>
+        </div>
+        <div class="fila-accion">
+          <button type="submit" class="btn btn-primario" id="mesero-guardar">Agregar mesero</button>
+          <button type="button" class="btn btn-borde oculto" id="mesero-cancelar">Cancelar edición</button>
+        </div>
+      </form>
+    </div>
+    <table class="tabla-abm">
+      <thead><tr><th>Mesero</th><th>Mesas</th><th class="acciones">Acciones</th></tr></thead>
+      <tbody id="tabla-meseros"></tbody>
+    </table>
+  </section>
+
+</main>
+
+<script src="/static/caja.js?v=3"></script>
+</body>
+</html>
