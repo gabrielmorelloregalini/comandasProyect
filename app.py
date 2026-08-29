@@ -172,13 +172,51 @@ def init_db():
     if db.execute("SELECT COUNT(*) AS n FROM mesa").fetchone()["n"] == 0:
         for i in range(1, 7):
             db.execute("INSERT INTO mesa (nombre) VALUES (?)", (f"Mesa {i}",))
-    if db.execute("SELECT COUNT(*) AS n FROM mesero").fetchone()["n"] == 0:
-        meseros = [("Mesero 1", 1), ("Mesero 2", 3), ("Mesero 3", 5)]
-        for nombre, mesa_id in meseros:
+    # Meseros iniciales (solo si no hay ninguno activo — evita duplicar tras migraciones)
+    if db.execute("SELECT COUNT(*) AS n FROM mesero WHERE activo=1").fetchone()["n"] == 0:
+        mesas_tmp = [r["id"] for r in db.execute("SELECT id FROM mesa WHERE activo=1 ORDER BY id").fetchall()]
+        if not mesas_tmp:
+            mesas_tmp = [r["id"] for r in db.execute("SELECT id FROM mesa ORDER BY id LIMIT 6").fetchall()]
+        base = [("Mesero 1", 0), ("Mesero 2", 1), ("Mesero 3", 2)]
+        for nombre, idx in base:
+            if mesas_tmp:
+                mid = db.insert("INSERT INTO mesero (nombre) VALUES (?)", (nombre,))
+                db.execute(
+                    "INSERT INTO mesero_mesa (mesero_id, mesa_id) VALUES (?, ?)",
+                    (mid, mesas_tmp[idx % len(mesas_tmp)]),
+                )
+    # 20 meseros adicionales para pruebas / evento grande (idempotente)
+    mesas_activas = [r["id"] for r in db.execute("SELECT id FROM mesa WHERE activo=1 ORDER BY id").fetchall()]
+    if not mesas_activas:
+        mesas_activas = [r["id"] for r in db.execute("SELECT id FROM mesa ORDER BY id LIMIT 6").fetchall()]
+    extras_nombres = [f"Mesero {i}" for i in range(4, 24)]  # 4..23 inclusive = 20
+    # incluir Mesero 3 si falta como activo (caso de DB vieja con Mesero 3 inactivo)
+    if not db.execute("SELECT 1 FROM mesero WHERE nombre='Mesero 3' AND activo=1").fetchone():
+        extras_nombres = ["Mesero 3"] + extras_nombres
+    activos = {r["nombre"] for r in db.execute("SELECT nombre FROM mesero WHERE activo=1").fetchall()}
+    todos = {r["nombre"]: r["id"] for r in db.execute("SELECT id, nombre FROM mesero").fetchall()}
+    for idx, nombre in enumerate(extras_nombres):
+        if nombre in activos:
+            continue
+        if nombre in todos:
+            # reactivar mesero inactivo
+            mid = todos[nombre]
+            db.execute("UPDATE mesero SET activo=1 WHERE id=?", (mid,))
+            # reasignar mesa si no tiene asignacion activa
+            if not db.execute(
+                "SELECT 1 FROM mesero_mesa mm JOIN mesa m ON m.id=mm.mesa_id WHERE mm.mesero_id=? AND m.activo=1",
+                (mid,),
+            ).fetchone():
+                db.execute("DELETE FROM mesero_mesa WHERE mesero_id=?", (mid,))
+                db.execute(
+                    "INSERT INTO mesero_mesa (mesero_id, mesa_id) VALUES (?, ?)",
+                    (mid, mesas_activas[idx % len(mesas_activas)]),
+                )
+        else:
             mid = db.insert("INSERT INTO mesero (nombre) VALUES (?)", (nombre,))
             db.execute(
                 "INSERT INTO mesero_mesa (mesero_id, mesa_id) VALUES (?, ?)",
-                (mid, mesa_id),
+                (mid, mesas_activas[idx % len(mesas_activas)]),
             )
     if db.execute("SELECT COUNT(*) AS n FROM aderezo").fetchone()["n"] == 0:
         db.executemany(
