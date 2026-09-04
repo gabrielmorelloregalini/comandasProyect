@@ -4,6 +4,7 @@ const $ = (sel) => document.querySelector(sel);
 
 let ALIAS = "algo";
 let MESERO = null;
+let MESEROS_TODOS = [];
 let PRODUCTOS = [];
 let carrito = new Map(); // clave "pid|aderezos-ids" -> { pid, cantidad, aderezosIds, aderezosNombres }
 let tokenPedido = null;
@@ -35,7 +36,8 @@ async function api(url, opciones) {
 function renderMeseros(meseros) {
   const caja = $("#lista-meseros");
   caja.innerHTML = "";
-  meseros.forEach((c) => {
+  const ordenados = [...meseros].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+  ordenados.forEach((c) => {
     const btn = document.createElement("button");
     btn.className = "boton-mesero";
     btn.textContent = c.nombre;
@@ -43,7 +45,13 @@ function renderMeseros(meseros) {
     caja.appendChild(btn);
   });
   if (meseros.length === 0) {
-    caja.innerHTML = '<div class="vacio">No hay meseros cargados. Avisale a caja.</div>';
+    const buscador = $("#buscador-mesero");
+    const hayBusqueda = buscador && buscador.value.trim() !== "";
+    if (hayBusqueda && MESEROS_TODOS.length > 0) {
+      caja.innerHTML = '<div class="vacio">No se encontraron meseros con ese nombre.</div>';
+    } else {
+      caja.innerHTML = '<div class="vacio">No hay meseros cargados. Avisale a caja.</div>';
+    }
   }
 }
 
@@ -371,6 +379,7 @@ async function init() {
   } catch (_) {}
   try {
     const meseros = await api("/api/meseros");
+    MESEROS_TODOS = meseros;
     renderMeseros(meseros);
   } catch (_) {}
 
@@ -382,6 +391,15 @@ async function init() {
         elegirMesero(c);
       }
     } catch (_) {}
+  }
+
+  const buscadorMesero = $("#buscador-mesero");
+  if (buscadorMesero) {
+    buscadorMesero.addEventListener("input", (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      const filtrados = MESEROS_TODOS.filter((m) => m.nombre.toLowerCase().includes(q));
+      renderMeseros(filtrados);
+    });
   }
 
   $("#input-comprador").addEventListener("input", renderCarrito);

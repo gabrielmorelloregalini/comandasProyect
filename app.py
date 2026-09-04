@@ -19,9 +19,11 @@ def ahora():
 
 # ============ CONFIGURACION ============
 # Alias de Mercado Pago que se muestra junto al total de la comanda.
-MP_ALIAS = os.environ.get("MP_ALIAS", "scau.ejemplo.alias")
+MP_ALIAS = "scau.ejemplo.alias"
 # Contrasena para entrar a /caja (cambiala a gusto).
 CAJA_PASSWORD = "soylacaja"
+# Contrasena para /monitor (solo vos)
+MONITOR_PASSWORD = os.environ.get("MONITOR_PASSWORD", "soyelmonitor")
 # =======================================
 
 _CAJA_TOKEN = os.environ.get("CAJA_TOKEN") or secrets.token_urlsafe(32)
@@ -542,7 +544,7 @@ def api_borrar_mesa(mid):
 @app.get("/api/meseros")
 def api_listar_meseros():
     db = get_db()
-    filas = db.execute("SELECT * FROM mesero WHERE activo=1 ORDER BY id").fetchall()
+    filas = db.execute("SELECT * FROM mesero WHERE activo=1 ORDER BY LOWER(nombre), id").fetchall()
     meseros = []
     for f in filas:
         mesas = db.execute(
@@ -773,6 +775,145 @@ def api_cobrar_pedido(pid):
 @app.post("/api/pedidos/<int:pid>/cancelar")
 def api_cancelar_pedido(pid):
     return _cambiar_estado_pedido(pid, "cancelado")
+
+
+# ============ MONITOR (Vercel + WhatsApp) ============
+def _check_monitor_auth():
+    if request.args.get("key") == MONITOR_PASSWORD:
+        return True
+    if request.headers.get("X-Monitor-Key") == MONITOR_PASSWORD:
+        return True
+    return False
+
+
+def _get_vercel_usage():
+    import json as _json
+    import urllib.request
+    import urllib.error
+
+    token = os.environ.get("VERCEL_TOKEN", "")
+    team_id = os.environ.get("VERCEL_TEAM_ID", "gmrultra")
+    project_id = os.environ.get("VERCEL_PROJECT_ID", "prj_inDV5Ga411pFojl4RV8Z7Jn8TLx9")
+    headers = {"Authorization": f"Bearer {token}"}
+    raw = {}
+    # 1) usage
+    try:
+        url = f"https://api.vercel.com/v1/usage?teamId={team_id}"
+        if project_id:
+            url += f"&projectId={project_id}"
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            raw["usage"] = _json.loads(resp.read().decode())
+    except Exception as e:
+        raw["usage_error"] = str(e)
+    # 2) project info
+    try:
+        if project_id:
+            url2 = f"https://api.vercel.com/v9/projects/{project_id}?teamId={team_id}"
+        else:
+            url2 = f"https://api.vercel.com/v9/projects?teamId={team_id}&limit=5"
+        req2 = urllib.request.Request(url2, headers=headers)
+        with urllib.request.urlopen(req2, timeout=8) as resp2:
+            raw["project"] = _json.loads(resp2.read().decode())
+    except Exception as e:
+        raw["project_error"] = str(e)
+    pct = {}
+    try:
+        usage = raw.get("usage", {})
+        # estructura puede variar; intentar extraer used/limit recursivo
+        def _collect(d, prefix=""):
+            for k, v in (d.items() if isinstance(d, dict) else []):
+                if isinstance(v, dict) and "used" in v and "limit" in v and v["limit"]:
+                    try:
+                        pct[prefix + k] = round(float(v["used"]) / float(v["limit"]) * 100, 1)
+                    except:
+                        pass
+                elif isinstance(v, dict):
+                    _collect(v, prefix + k + ".")
+        _collect(usage)
+    except:
+        pass
+    return raw, pct
+
+
+def _send_whatsapp_callmebot(text):
+    import urllib.request
+    import urllib.parse
+
+    phone = os.environ.get("CALLMEBOT_PHONE", "5491126675720")
+    apikey = os.environ.get("CALLMEBOT_APIKEY", "")
+    params = urllib.parse.urlencode({"phone": phone, "text": text, "apikey": apikey})
+    url = f"https://api.callmebot.com/whatsapp.php?{params}"
+    try:
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = resp.read().decode()[:800]
+            return {"ok": True, "body": body}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _check_and_alert(force=False):
+    raw, pct = _get_vercel_usage()
+    should = any(v > 70 for v in pct.values()) if pct else False
+    alerted = False
+    info = None
+    if (should or force) and pct:
+        db = get_db()
+        fila = db.execute("SELECT valor FROM configuracion WHERE clave='monitor_last_alert'").fetchone()
+        last = fila["valor"] if fila else None
+        can = True
+        if last and not force:
+            try:
+                last_dt = datetime.datetime.fromisoformat(last)
+                if last_dt.tzinfo is None:
+                    last_dt = last_dt.replace(tzinfo=TZ)
+                if (ahora() - last_dt).total_seconds() < 1800:
+                    can = False
+            except:
+                pass
+        if can:
+            max_pct = max(pct.values()) if pct else 0
+            detalles = ", ".join(f"{k} {v}%" for k, v in pct.items())
+            if not detalles:
+                detalles = f"uso {max_pct}%"
+            msg = f"⚠️ Vercel comandas al {max_pct}% - {detalles} - {ahora().strftime('%d/%m %H:%M')}"
+            info = _send_whatsapp_callmebot(msg)
+            if info.get("ok"):
+                try:
+                    db.execute(
+                        "INSERT INTO configuracion (clave, valor) VALUES ('monitor_last_alert', ?) ON CONFLICT(clave) DO UPDATE SET valor=EXCLUDED.valor",
+                        (ahora().isoformat(),),
+                    )
+                    db.commit()
+                except:
+                    pass
+                alerted = True
+    return raw, pct, alerted
+
+
+@app.get("/monitor")
+def pagina_monitor():
+    if not _check_monitor_auth():
+        abort(401, "No autorizado - usa ?key=soyelmonitor")
+    return render_template("monitor.html")
+
+
+@app.get("/api/monitor")
+def api_monitor():
+    if not _check_monitor_auth():
+        abort(401, "No autorizado")
+    force = request.args.get("force") == "1"
+    raw, pct, alerted = _check_and_alert(force=force)
+    return jsonify({"raw": raw, "pct": pct, "alerted": alerted, "threshold": 70, "now": ahora().isoformat()})
+
+
+@app.get("/api/monitor/cron")
+def api_monitor_cron():
+    if not _check_monitor_auth():
+        abort(401)
+    raw, pct, alerted = _check_and_alert(force=False)
+    return jsonify({"ok": True, "pct": pct, "alerted": alerted})
 
 
 # ============ VENTAS ============

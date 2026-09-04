@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitor - Recursos Vercel</title>
+<link rel="stylesheet" href="/static/style.css?v=6">
+<style>
+.bar { height: 18px; border-radius: 8px; background: #eee; overflow:hidden; }
+.bar > div { height: 100%; transition: width 0.3s; }
+.pct-ok { background: #10b981; }
+.pct-warn { background: #f59e0b; }
+.pct-danger { background: #ef4444; }
+.mono { font-family: ui-monospace, monospace; font-size: 0.85rem; white-space: pre-wrap; word-break: break-all; }
+</style>
+</head>
+<body>
+<header class="barra">
+  <h1>Monitor Vercel</h1>
+  <div class="sub" id="monitor-sub">Recursos y cuotas — umbral 70%</div>
+</header>
+<main class="container">
+  <div class="tarjeta">
+    <div class="fila-accion">
+      <button class="btn btn-primario" id="btn-refrescar">Refrescar ahora</button>
+      <button class="btn btn-borde" id="btn-probar">Probar alerta WhatsApp</button>
+    </div>
+    <div id="monitor-estado" class="aviso" style="margin-top:10px;">Cargando...</div>
+  </div>
+
+  <h2 class="seccion-titulo">Uso (%)</h2>
+  <div id="monitor-barras"></div>
+
+  <h2 class="seccion-titulo">Todo lo que envía Vercel (raw JSON)</h2>
+  <details class="tarjeta">
+    <summary>Ver JSON crudo</summary>
+    <pre class="mono" id="monitor-raw" style="margin-top:10px; max-height:50vh; overflow:auto;">-</pre>
+  </details>
+
+  <div class="aviso" style="margin-top:12px;">
+    Protegido con <code>?key=soyelmonitor</code> — cron Vercel cada 5 min en <code>/api/monitor/cron?key=soyelmonitor</code>.
+    WhatsApp → +5491126675720 vía CallMeBot.
+  </div>
+</main>
+<script>
+const params = new URLSearchParams(location.search);
+const KEY = params.get("key") || "";
+async function api(path) {
+  const sep = path.includes("?") ? "&" : "?";
+  const res = await fetch(path + sep + "key=" + encodeURIComponent(KEY));
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+function bar(pct) {
+  const cls = pct >= 90 ? "pct-danger" : pct >= 70 ? "pct-warn" : "pct-ok";
+  return `<div class="bar"><div class="${cls}" style="width:${Math.min(pct,100)}%"></div></div>`;
+}
+async function cargar(force=false) {
+  const elEstado = document.getElementById("monitor-estado");
+  const elBarras = document.getElementById("monitor-barras");
+  const elRaw = document.getElementById("monitor-raw");
+  elEstado.textContent = "Consultando Vercel...";
+  try {
+    const data = await api("/api/monitor" + (force ? "?force=1" : ""));
+    const pct = data.pct || {};
+    const raw = data.raw || {};
+    // barras
+    if (Object.keys(pct).length === 0) {
+      elBarras.innerHTML = '<div class="vacio">Sin datos de % (ver JSON crudo abajo)</div>';
+    } else {
+      elBarras.innerHTML = Object.entries(pct).map(([k,v]) => `
+        <div class="tarjeta">
+          <div style="display:flex;justify-content:space-between;"><b>${k}</b><span>${v}% ${v>70?'⚠️':''}</span></div>
+          ${bar(v)}
+        </div>
+      `).join("");
+    }
+    elRaw.textContent = JSON.stringify(raw, null, 2);
+    elEstado.textContent = data.alerted ? "✅ Alerta WhatsApp enviada" : (Object.values(pct).some(v=>v>70) ? "⚠️ Supera 70% pero ya alertado hace <30m" : "OK — por debajo del 70%");
+    elEstado.className = Object.values(pct).some(v=>v>70) ? "aviso" : "aviso";
+  } catch(e) {
+    elEstado.textContent = "Error: " + e.message;
+    elEstado.className = "aviso";
+  }
+}
+document.getElementById("btn-refrescar").addEventListener("click", ()=>cargar(false));
+document.getElementById("btn-probar").addEventListener("click", async ()=>{
+  if (!confirm("¿Enviar prueba de WhatsApp a +5491126675720?")) return;
+  await cargar(true);
+});
+if (!KEY) {
+  document.getElementById("monitor-estado").textContent = "Falta ?key=soyelmonitor en la URL";
+} else {
+  cargar(false);
+  setInterval(()=>cargar(false), 5*60*1000);
+}
+</script>
+</body>
+</html>

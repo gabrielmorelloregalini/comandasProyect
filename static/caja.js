@@ -44,7 +44,7 @@ document.querySelectorAll(".pestana").forEach((b) => {
 document.querySelectorAll(".filtro").forEach((b) => {
   b.addEventListener("click", () => {
     filtroComandas = b.dataset.filtro;
-    document.querySelectorAll(".filtro").forEach((f) => f.classList.toggle("btn-primario", f === b));
+    document.querySelectorAll(".filtro").forEach((f) => f.classList.toggle("activo", f === b));
     cargarComandas();
   });
 });
@@ -101,14 +101,14 @@ function tarjetaComanda(p) {
     };
     const ops = mapa[p.estado] || [];
     if (ops.length) {
-      dropdown = `<select class="estado-dropdown" data-id="${p.id}"><option value="">Cambiar estado...</option>${ops.map(o=>`<option value="${o.val}">${o.label}</option>`).join("")}</select>`;
+      dropdown = `<div class="cambiar-estado"><label class="cambiar-estado-label">Cambiar estado</label><select class="estado-dropdown" data-id="${p.id}"><option value="">Seleccionar...</option>${ops.map(o=>`<option value="${o.val}">${o.label}</option>`).join("")}</select></div>`;
     }
   }
 
   const abierta = abiertas.has(p.id) ? "open" : "";
 
   return `
-    <details class="tarjeta comanda-detalle ${p.estado === "cobrado" ? "cobrada" : p.estado === "cancelado" ? "cancelada" : p.estado === "finalizado" ? "finalizada" : ""}" ${abierta} data-id="${p.id}">
+    <details class="tarjeta comanda-detalle ${p.estado === "cobrado" ? "cobrada" : p.estado === "cancelado" ? "cancelada" : p.estado === "finalizado" ? "finalizada" : p.estado === "pendiente" ? "pendiente" : ""}" ${abierta} data-id="${p.id}">
       <summary>
         <span class="comanda-numero">${p.numero}</span>
         <span class="comanda-meta">
@@ -162,7 +162,7 @@ async function cargarComandas() {
       b.addEventListener("click", async () => {
         try {
           await api("/api/pedidos/" + b.dataset.id + "/estado", { method: "PUT", body: JSON.stringify({estado:"cobrado"}) });
-          cargarComandas();
+          cargarComandas(); cargarVentas();
         } catch (e) {
           alert("Error: " + e.message);
         }
@@ -173,7 +173,7 @@ async function cargarComandas() {
         if (!confirm("¿Cancelar esta comanda? Quedará registrada como cancelada y no sumará a las ventas.")) return;
         try {
           await api("/api/pedidos/" + b.dataset.id + "/estado", { method: "PUT", body: JSON.stringify({estado:"cancelado"}) });
-          cargarComandas();
+          cargarComandas(); cargarVentas();
         } catch (e) {
           alert("Error: " + e.message);
         }
@@ -184,7 +184,7 @@ async function cargarComandas() {
         if (!confirm("¿Finalizar este pedido? Pasará a Finalizados y quedará como entregado.")) return;
         try {
           await api("/api/pedidos/" + b.dataset.id + "/estado", { method: "PUT", body: JSON.stringify({estado:"finalizado"}) });
-          cargarComandas();
+          cargarComandas(); cargarVentas();
         } catch (e) {
           alert("Error: " + e.message);
         }
@@ -197,7 +197,7 @@ async function cargarComandas() {
         if (!confirm(`¿Cambiar estado a ${nuevo}?`)) { sel.value=""; return; }
         try {
           await api("/api/pedidos/" + sel.dataset.id + "/estado", { method: "PUT", body: JSON.stringify({estado:nuevo}) });
-          cargarComandas();
+          cargarComandas(); cargarVentas();
         } catch (e) {
           alert("Error: " + e.message);
           sel.value="";

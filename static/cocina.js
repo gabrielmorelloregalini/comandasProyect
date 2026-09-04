@@ -2,6 +2,7 @@ const fmt = (n) => Number(n).toLocaleString("es-AR");
 const $ = (sel) => document.querySelector(sel);
 
 let idsPrevios = new Set();
+let abiertas = new Set();
 let textoBusqueda = "";
 let pestanaCocina = "preparar";
 
@@ -27,21 +28,29 @@ function tarjetaCocina(p, esNuevo) {
     <div class="comanda-item-lista">
       <span><span class="cant">${i.cantidad} x</span>${i.nombre} ${chipsAderezos(i.aderezos)}</span>
     </div>`).join("");
-
+  const badge = '<span class="badge cobrado">Cobrado</span>';
+  const metodo = p.metodo_pago ? `<span class="badge metodo ${p.metodo_pago}">${p.metodo_pago === "efectivo" ? "Efectivo" : "Transferencia"}</span>` : "";
+  const abierta = abiertas.has(p.id) ? "open" : "";
+  const esNuevoCls = esNuevo ? " nuevo" : "";
   return `
-    <div class="tarjeta cocina ${esNuevo ? "nuevo" : ""}" data-id="${p.id}">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
+    <details class="tarjeta comanda-detalle cocina cobrada${esNuevoCls}" ${abierta} data-id="${p.id}">
+      <summary>
         <span class="comanda-numero">${p.numero}</span>
-        <button class="btn btn-naranja ocultar" data-id="${p.id}">Finalizar</button>
+        <span class="comanda-meta">
+          <span><b>Mesa:</b> ${p.mesa}</span>
+          <span><b>Comprador:</b> ${p.comprador}</span>
+          <span><b>Mesero:</b> ${p.mesero}</span>
+          <span><b>Hora:</b> ${p.creado_en.slice(11, 16)}</span>
+        </span>
+        ${metodo}
+        ${badge}
+        <span class="chevron">▾</span>
+      </summary>
+      <div class="comanda-contenido">
+        <div class="comanda-items">${items}</div>
+        <div class="fila-accion"><button class="btn btn-naranja ocultar" data-id="${p.id}">Finalizar</button></div>
       </div>
-      <div class="comanda-meta">
-        <span><b>Mesa:</b> ${p.mesa}</span>
-        <span><b>Comprador:</b> ${p.comprador}</span>
-        <span><b>Mesero:</b> ${p.mesero}</span>
-        <span><b>Hora:</b> ${p.creado_en.slice(11, 16)}</span>
-      </div>
-      <div class="comanda-items">${items}</div>
-    </div>`;
+    </details>`;
 }
 
 function tarjetaFinalizado(p) {
@@ -49,21 +58,27 @@ function tarjetaFinalizado(p) {
     <div class="comanda-item-lista">
       <span><span class="cant">${i.cantidad} x</span>${i.nombre} ${chipsAderezos(i.aderezos)}</span>
     </div>`).join("");
+  const metodo = p.metodo_pago ? `<span class="badge metodo ${p.metodo_pago}">${p.metodo_pago === "efectivo" ? "Efectivo" : "Transferencia"}</span>` : "";
+  const abierta = abiertas.has(p.id) ? "open" : "";
   return `
-    <div class="tarjeta cocina finalizada" data-id="${p.id}">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
+    <details class="tarjeta comanda-detalle cocina finalizada" ${abierta} data-id="${p.id}">
+      <summary>
         <span class="comanda-numero">${p.numero}</span>
+        <span class="comanda-meta">
+          <span><b>Mesa:</b> ${p.mesa}</span>
+          <span><b>Comprador:</b> ${p.comprador}</span>
+          <span><b>Mesero:</b> ${p.mesero}</span>
+          <span><b>Hora:</b> ${p.creado_en.slice(11, 16)}</span>
+        </span>
+        ${metodo}
         <span class="badge finalizado">Finalizado</span>
-        <button class="btn btn-borde revertir" data-id="${p.id}">→ Cobrado</button>
+        <span class="chevron">▾</span>
+      </summary>
+      <div class="comanda-contenido">
+        <div class="comanda-items">${items}</div>
+        <div class="fila-accion"><button class="btn btn-borde revertir" data-id="${p.id}">→ Cobrado</button></div>
       </div>
-      <div class="comanda-meta">
-        <span><b>Mesa:</b> ${p.mesa}</span>
-        <span><b>Comprador:</b> ${p.comprador}</span>
-        <span><b>Mesero:</b> ${p.mesero}</span>
-        <span><b>Hora:</b> ${p.creado_en.slice(11, 16)}</span>
-      </div>
-      <div class="comanda-items">${items}</div>
-    </div>`;
+    </details>`;
 }
 
 function filtrarComanda(p) {
@@ -115,6 +130,13 @@ async function cargar() {
       zona.innerHTML = cobrados
         .map((p) => tarjetaCocina(p, nuevos.some((n) => n.id === p.id)))
         .join("");
+      zona.querySelectorAll(".comanda-detalle").forEach((d) => {
+        const id = Number(d.dataset.id);
+        d.addEventListener("toggle", () => {
+          if (d.open) abiertas.add(id);
+          else abiertas.delete(id);
+        });
+      });
       zona.querySelectorAll(".ocultar").forEach((btn) => {
         btn.addEventListener("click", async () => {
           btn.disabled = true;
@@ -154,6 +176,13 @@ async function cargarFinalizados() {
       return;
     }
     zona.innerHTML = filtrados.map(tarjetaFinalizado).join("");
+    zona.querySelectorAll(".comanda-detalle").forEach((d) => {
+      const id = Number(d.dataset.id);
+      d.addEventListener("toggle", () => {
+        if (d.open) abiertas.add(id);
+        else abiertas.delete(id);
+      });
+    });
     zona.querySelectorAll(".revertir").forEach((btn) => {
       btn.addEventListener("click", async () => {
         btn.disabled = true;

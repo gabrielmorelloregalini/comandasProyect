@@ -5,5 +5,11 @@
   ],
   "routes": [
     { "src": "/(.*)", "dest": "api/index.py" }
+  ],
+  "crons": [
+    {
+      "path": "/api/monitor/cron?key=soyelmonitor",
+      "schedule": "*/5 * * * *"
+    }
   ]
 }
