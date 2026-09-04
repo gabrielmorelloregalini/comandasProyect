@@ -22,7 +22,6 @@
     <button class="btn pestana" data-pestana="mesas">Mesas</button>
     <button class="btn pestana" data-pestana="meseros">Meseros</button>
     <button class="btn pestana" data-pestana="alias">Alias MP</button>
-    <button class="btn pestana" data-pestana="finalizados">Finalizados</button>
   </div>
 
   <!-- PESTANA COMANDAS -->
@@ -34,6 +33,7 @@
       <button class="btn filtro btn-borde" data-filtro="pendiente">Pendientes</button>
       <button class="btn filtro btn-borde" data-filtro="cobrado">Cobradas</button>
       <button class="btn filtro btn-borde" data-filtro="cancelado">Canceladas</button>
+      <button class="btn filtro btn-borde" data-filtro="finalizado">Finalizados</button>
       <button class="btn filtro btn-borde" data-filtro="todas">Todas</button>
     </div>
     <div id="lista-comandas"><div class="vacio">Cargando...</div></div>
@@ -167,16 +167,8 @@
     </div>
   </section>
 
-  <!-- PESTANA FINALIZADOS -->
-  <section id="pestana-finalizados" class="oculto">
-    <div class="campo">
-      <input type="text" id="buscador-finalizados" placeholder="Buscar por mesero, comprador, mesa o numero..." autocomplete="off">
-    </div>
-    <div id="lista-finalizados"><div class="vacio">Cargando...</div></div>
-  </section>
-
 </main>
 
-<script src="/static/caja.js?v=6"></script>
+<script src="/static/caja.js?v=7"></script>
 </body>
 </html>

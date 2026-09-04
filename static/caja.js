@@ -26,7 +26,7 @@ function cambiarPestana(nombre) {
   document.querySelectorAll(".pestana").forEach((b) => {
     b.classList.toggle("btn-primario", b.dataset.pestana === nombre);
   });
-  ["comandas", "ventas", "productos", "aderezos", "mesas", "meseros", "alias", "finalizados"].forEach((p) => {
+  ["comandas", "ventas", "productos", "aderezos", "mesas", "meseros", "alias"].forEach((p) => {
     $("#pestana-" + p).classList.toggle("oculto", p !== nombre);
   });
   if (nombre === "comandas") cargarComandas();
@@ -36,7 +36,6 @@ function cambiarPestana(nombre) {
   if (nombre === "mesas") cargarMesas();
   if (nombre === "meseros") { cargarMeseros(); cargarMesasParaMeseros(); }
   if (nombre === "alias") cargarAlias();
-  if (nombre === "finalizados") cargarFinalizados();
 }
 
 document.querySelectorAll(".pestana").forEach((b) => {
@@ -91,6 +90,21 @@ function tarjetaComanda(p) {
     ? `<div class="fila-accion">${btnCancelar}${btnCobrar}${btnFinalizar}</div>`
     : "";
 
+  // dropdown: en "Todas" para todos, y siempre para finalizados (para revertir)
+  let dropdown = "";
+  const mostrarDropdown = (filtroComandas === "todas" && p.estado !== "cancelado") || p.estado === "finalizado";
+  if (mostrarDropdown) {
+    const mapa = {
+      pendiente: [{val:"cobrado", label:"→ Cobrado"}, {val:"cancelado", label:"→ Cancelado"}],
+      cobrado: [{val:"pendiente", label:"→ Pendiente"}, {val:"cancelado", label:"→ Cancelado"}, {val:"finalizado", label:"→ Finalizado"}],
+      finalizado: [{val:"cobrado", label:"→ Cobrado"}, {val:"pendiente", label:"→ Pendiente"}],
+    };
+    const ops = mapa[p.estado] || [];
+    if (ops.length) {
+      dropdown = `<select class="estado-dropdown" data-id="${p.id}"><option value="">Cambiar estado...</option>${ops.map(o=>`<option value="${o.val}">${o.label}</option>`).join("")}</select>`;
+    }
+  }
+
   const abierta = abiertas.has(p.id) ? "open" : "";
 
   return `
@@ -115,6 +129,7 @@ function tarjetaComanda(p) {
           <div class="valor">${ALIAS}</div>
         </div>
         ${acciones}
+        ${dropdown}
       </div>
     </details>`;
 }
@@ -128,7 +143,7 @@ function filtrarComanda(p) {
 
 async function cargarComandas() {
   try {
-    const pedidos = await api("/api/pedidos?estado=pendiente,cobrado,cancelado&limit=300");
+    const pedidos = await api("/api/pedidos?estado=pendiente,cobrado,cancelado,finalizado&limit=300");
     const lista = $("#lista-comandas");
     const filtrados = pedidos.filter(filtrarComanda);
     if (filtrados.length === 0) {
@@ -146,7 +161,7 @@ async function cargarComandas() {
     lista.querySelectorAll(".btn-cobrar").forEach((b) => {
       b.addEventListener("click", async () => {
         try {
-          await api("/api/pedidos/" + b.dataset.id + "/cobrar", { method: "POST" });
+          await api("/api/pedidos/" + b.dataset.id + "/estado", { method: "PUT", body: JSON.stringify({estado:"cobrado"}) });
           cargarComandas();
         } catch (e) {
           alert("Error: " + e.message);
@@ -157,7 +172,7 @@ async function cargarComandas() {
       b.addEventListener("click", async () => {
         if (!confirm("¿Cancelar esta comanda? Quedará registrada como cancelada y no sumará a las ventas.")) return;
         try {
-          await api("/api/pedidos/" + b.dataset.id + "/cancelar", { method: "POST" });
+          await api("/api/pedidos/" + b.dataset.id + "/estado", { method: "PUT", body: JSON.stringify({estado:"cancelado"}) });
           cargarComandas();
         } catch (e) {
           alert("Error: " + e.message);
@@ -168,46 +183,29 @@ async function cargarComandas() {
       b.addEventListener("click", async () => {
         if (!confirm("¿Finalizar este pedido? Pasará a Finalizados y quedará como entregado.")) return;
         try {
-          await api("/api/pedidos/" + b.dataset.id + "/finalizar", { method: "POST" });
+          await api("/api/pedidos/" + b.dataset.id + "/estado", { method: "PUT", body: JSON.stringify({estado:"finalizado"}) });
           cargarComandas();
         } catch (e) {
           alert("Error: " + e.message);
         }
       });
     });
-  } catch (e) {
-    $("#lista-comandas").innerHTML = '<div class="vacio">Error al cargar: ' + e.message + "</div>";
-  }
-}
-
-// ---------- Finalizados (caja) ----------
-let textoBusquedaFinalizados = "";
-
-function filtrarFinalizado(p) {
-  const q = textoBusquedaFinalizados.toLowerCase();
-  if (!q) return true;
-  return (p.numero + " " + p.mesa + " " + p.comprador + " " + p.mesero).toLowerCase().includes(q);
-}
-
-async function cargarFinalizados() {
-  try {
-    const pedidos = await api("/api/pedidos?estado=finalizado&limit=300");
-    const lista = $("#lista-finalizados");
-    const filtrados = pedidos.filter(filtrarFinalizado);
-    if (filtrados.length === 0) {
-      lista.innerHTML = '<div class="vacio">No hay pedidos finalizados.</div>';
-      return;
-    }
-    lista.innerHTML = filtrados.map(tarjetaComanda).join("");
-    lista.querySelectorAll(".comanda-detalle").forEach((d) => {
-      const id = Number(d.dataset.id);
-      d.addEventListener("toggle", () => {
-        if (d.open) abiertas.add(id);
-        else abiertas.delete(id);
+    lista.querySelectorAll(".estado-dropdown").forEach((sel) => {
+      sel.addEventListener("change", async () => {
+        const nuevo = sel.value;
+        if (!nuevo) return;
+        if (!confirm(`¿Cambiar estado a ${nuevo}?`)) { sel.value=""; return; }
+        try {
+          await api("/api/pedidos/" + sel.dataset.id + "/estado", { method: "PUT", body: JSON.stringify({estado:nuevo}) });
+          cargarComandas();
+        } catch (e) {
+          alert("Error: " + e.message);
+          sel.value="";
+        }
       });
     });
   } catch (e) {
-    $("#lista-finalizados").innerHTML = '<div class="vacio">Error al cargar: ' + e.message + "</div>";
+    $("#lista-comandas").innerHTML = '<div class="vacio">Error al cargar: ' + e.message + "</div>";
   }
 }
 
@@ -622,17 +620,9 @@ async function init() {
     textoBusqueda = e.target.value.trim();
     cargarComandas();
   });
-  const buscFinal = $("#buscador-finalizados");
-  if (buscFinal) {
-    buscFinal.addEventListener("input", (e) => {
-      textoBusquedaFinalizados = e.target.value.trim();
-      cargarFinalizados();
-    });
-  }
   setInterval(() => {
     if (!$("#pestana-comandas").classList.contains("oculto")) cargarComandas();
     if (!$("#pestana-ventas").classList.contains("oculto")) cargarVentas();
-    if (!$("#pestana-finalizados").classList.contains("oculto")) cargarFinalizados();
   }, 3000);
 }
 

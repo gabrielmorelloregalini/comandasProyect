@@ -725,36 +725,54 @@ def api_crear_pedido():
     return jsonify({"id": pid, "numero": numero, "total": total})
 
 
-@app.post("/api/pedidos/<int:pid>/cobrar")
-def api_cobrar_pedido(pid):
-    db = get_db()
-    db.execute("UPDATE pedido SET estado='cobrado' WHERE id=?", (pid,))
-    db.commit()
-    return jsonify({"ok": True})
+def _es_caja():
+    return request.cookies.get("caja_token") == _CAJA_TOKEN
 
 
-@app.post("/api/pedidos/<int:pid>/cancelar")
-def api_cancelar_pedido(pid):
-    db = get_db()
-    db.execute("UPDATE pedido SET estado='cancelado' WHERE id=?", (pid,))
-    db.commit()
-    return jsonify({"ok": True})
-
-
-@app.post("/api/pedidos/<int:pid>/finalizar")
-def api_finalizar_pedido(pid):
+def _cambiar_estado_pedido(pid, nuevo_estado):
+    if nuevo_estado not in ESTADOS_PEDIDO:
+        abort(400, "Estado invalido")
     db = get_db()
     pedido = db.execute("SELECT estado FROM pedido WHERE id=?", (pid,)).fetchone()
     if not pedido:
         abort(404, "Pedido no encontrado")
-    estado = pedido["estado"]
-    if estado == "finalizado":
-        return jsonify({"ok": True, "ya_finalizado": True})
-    if estado != "cobrado":
-        abort(400, "Solo se puede finalizar un pedido cobrado")
-    db.execute("UPDATE pedido SET estado='finalizado' WHERE id=?", (pid,))
+    actual = pedido["estado"]
+    if actual == nuevo_estado:
+        return jsonify({"ok": True, "ya_en_estado": True, "estado": actual})
+    # matriz de transiciones permitidas
+    permitidas = {
+        "pendiente": ["cobrado", "cancelado"],
+        "cobrado": ["pendiente", "cancelado", "finalizado"],
+        "finalizado": ["cobrado", "pendiente"],
+        "cancelado": [],
+    }
+    if nuevo_estado not in permitidas.get(actual, []):
+        abort(400, f"No se puede pasar de {actual} a {nuevo_estado}")
+    # solo caja puede hacer estas reversiones a pendiente
+    es_caja = _es_caja()
+    if nuevo_estado == "pendiente" and actual in ("cobrado", "finalizado") and not es_caja:
+        abort(403, "Solo caja puede revertir a pendiente")
+    db.execute("UPDATE pedido SET estado=? WHERE id=?", (nuevo_estado, pid))
     db.commit()
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "estado": nuevo_estado, "anterior": actual})
+
+
+@app.put("/api/pedidos/<int:pid>/estado")
+def api_cambiar_estado(pid):
+    data = request.get_json(force=True)
+    nuevo = (data.get("estado") or "").strip()
+    return _cambiar_estado_pedido(pid, nuevo)
+
+
+# Compatibilidad: endpoints viejos ahora delegan al nuevo con validación
+@app.post("/api/pedidos/<int:pid>/cobrar")
+def api_cobrar_pedido(pid):
+    return _cambiar_estado_pedido(pid, "cobrado")
+
+
+@app.post("/api/pedidos/<int:pid>/cancelar")
+def api_cancelar_pedido(pid):
+    return _cambiar_estado_pedido(pid, "cancelado")
 
 
 # ============ VENTAS ============

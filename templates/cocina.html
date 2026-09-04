@@ -13,12 +13,21 @@
 </header>
 
 <main class="container">
+  <div class="pestanas">
+    <button class="btn pestana btn-primario" data-pestana="preparar">Por preparar</button>
+    <button class="btn pestana" data-pestana="finalizados">Finalizados</button>
+  </div>
   <div class="campo">
     <input type="text" id="buscador-cocina" placeholder="Buscar por numero, mesa, comprador o mesero..." autocomplete="off">
   </div>
-  <div id="zona-pedidos"><div class="vacio">Esperando pedidos...</div></div>
+  <section id="pestana-preparar">
+    <div id="zona-pedidos"><div class="vacio">Esperando pedidos...</div></div>
+  </section>
+  <section id="pestana-finalizados-cocina" class="oculto">
+    <div id="zona-finalizados"><div class="vacio">No hay pedidos finalizados.</div></div>
+  </section>
 </main>
 
-<script src="/static/cocina.js?v=6"></script>
+<script src="/static/cocina.js?v=7"></script>
 </body>
 </html>
