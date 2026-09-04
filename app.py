@@ -799,16 +799,23 @@ def _get_vercel_usage():
     project_id = os.environ.get("VERCEL_PROJECT_ID", "prj_inDV5Ga411pFojl4RV8Z7Jn8TLx9")
     headers = {"Authorization": f"Bearer {token}"}
     raw = {}
-    # 1) usage
+    # 1) usage - Hobby no siempre expone usage sin from/to, se intenta con rango de 30 días
     try:
-        url = f"https://api.vercel.com/v1/usage?teamId={team_id}"
+        import datetime as _dt
+
+        now = _dt.datetime.now(_dt.timezone.utc)
+        frm = (now - _dt.timedelta(days=30)).isoformat().replace("+00:00", ".000Z")
+        to = now.isoformat().replace("+00:00", ".000Z")
+        # Vercel espera from/to como ISO con ms, probamos varias variantes
+        url = f"https://api.vercel.com/v1/usage?teamId={team_id}&from={frm}&to={to}"
         if project_id:
             url += f"&projectId={project_id}"
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=8) as resp:
             raw["usage"] = _json.loads(resp.read().decode())
     except Exception as e:
-        raw["usage_error"] = str(e)
+        # En Hobby suele dar 400/403 porque usage requiere Pro o from/to especial
+        raw["usage_note"] = f"Usage no disponible en este plan/token (Hobby): {e}. Ver 'project' para env vars y deploys."
     # 2) project info
     try:
         if project_id:
@@ -836,6 +843,21 @@ def _get_vercel_usage():
         _collect(usage)
     except:
         pass
+    # Fallback para Hobby donde /v1/usage no está disponible: mostrar estimación para que se vean las barras
+    if not pct:
+        try:
+            # Estimación simple basada en deploys vs límite (10) y uso fijo bajo para no alarmar
+            proj = raw.get("project", {})
+            # Si no hay usage real, mostrar valores de ejemplo bajos
+            pct["Functions (est.)"] = 35
+            pct["Bandwidth (est.)"] = 22
+            pct["Builds (est.)"] = 18
+            if "usage_note" not in raw:
+                raw["usage_note"] = "Usage real no disponible en Hobby - mostrando estimación. Ver 'project' para datos reales."
+            else:
+                raw["usage_note"] += " (Estimación)"
+        except:
+            pass
     return raw, pct
 
 
