@@ -26,7 +26,7 @@ function cambiarPestana(nombre) {
   document.querySelectorAll(".pestana").forEach((b) => {
     b.classList.toggle("btn-primario", b.dataset.pestana === nombre);
   });
-  ["comandas", "ventas", "productos", "aderezos", "mesas", "meseros", "alias"].forEach((p) => {
+  ["comandas", "ventas", "productos", "aderezos", "mesas", "meseros", "alias", "finalizados"].forEach((p) => {
     $("#pestana-" + p).classList.toggle("oculto", p !== nombre);
   });
   if (nombre === "comandas") cargarComandas();
@@ -36,6 +36,7 @@ function cambiarPestana(nombre) {
   if (nombre === "mesas") cargarMesas();
   if (nombre === "meseros") { cargarMeseros(); cargarMesasParaMeseros(); }
   if (nombre === "alias") cargarAlias();
+  if (nombre === "finalizados") cargarFinalizados();
 }
 
 document.querySelectorAll(".pestana").forEach((b) => {
@@ -62,7 +63,9 @@ function tarjetaComanda(p) {
       <span>$ ${fmt(i.precio * i.cantidad)}</span>
     </div>`).join("");
 
-  const badge = p.estado === "cobrado"
+  const badge = p.estado === "finalizado"
+    ? '<span class="badge finalizado">Finalizado</span>'
+    : p.estado === "cobrado"
     ? '<span class="badge cobrado">Cobrado</span>'
     : p.estado === "cancelado"
     ? '<span class="badge cancelado">Cancelado</span>'
@@ -73,21 +76,25 @@ function tarjetaComanda(p) {
     : "";
 
   const btnCobrar = p.estado === "pendiente"
-    ? `<div class="fila-accion"><button class="btn btn-primario btn-cobrar" data-id="${p.id}">Marcar como cobrado</button></div>`
+    ? `<button class="btn btn-primario btn-cobrar" data-id="${p.id}">Marcar como cobrado</button>`
     : "";
 
   const btnCancelar = (p.estado === "pendiente" || p.estado === "cobrado")
     ? `<button class="btn btn-rojo btn-cancelar" data-id="${p.id}">Cancelar comanda</button>`
     : "";
 
-  const acciones = (btnCobrar || btnCancelar)
-    ? `<div class="fila-accion">${btnCancelar}${btnCobrar}</div>`
+  const btnFinalizar = p.estado === "cobrado"
+    ? `<button class="btn btn-naranja btn-finalizar" data-id="${p.id}">Finalizar</button>`
+    : "";
+
+  const acciones = (btnCobrar || btnCancelar || btnFinalizar)
+    ? `<div class="fila-accion">${btnCancelar}${btnCobrar}${btnFinalizar}</div>`
     : "";
 
   const abierta = abiertas.has(p.id) ? "open" : "";
 
   return `
-    <details class="tarjeta comanda-detalle ${p.estado === "cobrado" ? "cobrada" : p.estado === "cancelado" ? "cancelada" : ""}" ${abierta} data-id="${p.id}">
+    <details class="tarjeta comanda-detalle ${p.estado === "cobrado" ? "cobrada" : p.estado === "cancelado" ? "cancelada" : p.estado === "finalizado" ? "finalizada" : ""}" ${abierta} data-id="${p.id}">
       <summary>
         <span class="comanda-numero">${p.numero}</span>
         <span class="comanda-meta">
@@ -157,8 +164,50 @@ async function cargarComandas() {
         }
       });
     });
+    lista.querySelectorAll(".btn-finalizar").forEach((b) => {
+      b.addEventListener("click", async () => {
+        if (!confirm("¿Finalizar este pedido? Pasará a Finalizados y quedará como entregado.")) return;
+        try {
+          await api("/api/pedidos/" + b.dataset.id + "/finalizar", { method: "POST" });
+          cargarComandas();
+        } catch (e) {
+          alert("Error: " + e.message);
+        }
+      });
+    });
   } catch (e) {
     $("#lista-comandas").innerHTML = '<div class="vacio">Error al cargar: ' + e.message + "</div>";
+  }
+}
+
+// ---------- Finalizados (caja) ----------
+let textoBusquedaFinalizados = "";
+
+function filtrarFinalizado(p) {
+  const q = textoBusquedaFinalizados.toLowerCase();
+  if (!q) return true;
+  return (p.numero + " " + p.mesa + " " + p.comprador + " " + p.mesero).toLowerCase().includes(q);
+}
+
+async function cargarFinalizados() {
+  try {
+    const pedidos = await api("/api/pedidos?estado=finalizado&limit=300");
+    const lista = $("#lista-finalizados");
+    const filtrados = pedidos.filter(filtrarFinalizado);
+    if (filtrados.length === 0) {
+      lista.innerHTML = '<div class="vacio">No hay pedidos finalizados.</div>';
+      return;
+    }
+    lista.innerHTML = filtrados.map(tarjetaComanda).join("");
+    lista.querySelectorAll(".comanda-detalle").forEach((d) => {
+      const id = Number(d.dataset.id);
+      d.addEventListener("toggle", () => {
+        if (d.open) abiertas.add(id);
+        else abiertas.delete(id);
+      });
+    });
+  } catch (e) {
+    $("#lista-finalizados").innerHTML = '<div class="vacio">Error al cargar: ' + e.message + "</div>";
   }
 }
 
@@ -573,9 +622,17 @@ async function init() {
     textoBusqueda = e.target.value.trim();
     cargarComandas();
   });
+  const buscFinal = $("#buscador-finalizados");
+  if (buscFinal) {
+    buscFinal.addEventListener("input", (e) => {
+      textoBusquedaFinalizados = e.target.value.trim();
+      cargarFinalizados();
+    });
+  }
   setInterval(() => {
     if (!$("#pestana-comandas").classList.contains("oculto")) cargarComandas();
     if (!$("#pestana-ventas").classList.contains("oculto")) cargarVentas();
+    if (!$("#pestana-finalizados").classList.contains("oculto")) cargarFinalizados();
   }, 3000);
 }
 

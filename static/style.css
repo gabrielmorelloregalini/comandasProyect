@@ -179,6 +179,7 @@ header.barra .sub { font-size: 0.85rem; opacity: 0.9; color: #ffd84d; }
 .badge.pendiente { background: #fdecea; color: var(--rojo); }
 .badge.cobrado { background: var(--amarillo); color: var(--negro); }
 .badge.cancelado { background: #e6e6e6; color: #6b6b6b; }
+.badge.finalizado { background: #d1fae5; color: #065f46; }
 .badge.metodo { background: var(--amarillo-claro); color: #7a5c00; }
 .badge.metodo.efectivo { background: var(--amarillo); color: var(--negro); }
 .badge.metodo.transferencia { background: var(--negro); color: var(--amarillo); }
@@ -201,6 +202,7 @@ header.barra .sub { font-size: 0.85rem; opacity: 0.9; color: #ffd84d; }
 
 /* ---- Comanda cancelada ---- */
 .comanda-detalle.cancelada { background: #f6f6f6; opacity: 0.75; }
+.comanda-detalle.finalizada { background: #ecfdf5; opacity: 0.9; }
 
 /* ---- Ventas ---- */
 .panel-ventas { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }

@@ -1,22 +1,16 @@
 const fmt = (n) => Number(n).toLocaleString("es-AR");
 const $ = (sel) => document.querySelector(sel);
 
-const CLAVE_OCULTOS = "scau_cocina_ocultos";
-
-function getOcultos() {
-  try {
-    return new Set(JSON.parse(localStorage.getItem(CLAVE_OCULTOS) || "[]"));
-  } catch (_) {
-    return new Set();
-  }
-}
-
-function guardarOcultos(ocultos) {
-  localStorage.setItem(CLAVE_OCULTOS, JSON.stringify([...ocultos]));
-}
-
 let idsPrevios = new Set();
 let textoBusqueda = "";
+
+async function finalizarPedido(id) {
+  const res = await fetch("/api/pedidos/" + id + "/finalizar", { method: "POST" });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(txt || "Error al finalizar");
+  }
+}
 
 function chipsAderezos(lista) {
   if (!lista || lista.length === 0) return "";
@@ -33,7 +27,7 @@ function tarjetaCocina(p, esNuevo) {
     <div class="tarjeta cocina ${esNuevo ? "nuevo" : ""}" data-id="${p.id}">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <span class="comanda-numero">${p.numero}</span>
-        <button class="btn btn-naranja ocultar" data-id="${p.id}">Ocultar</button>
+        <button class="btn btn-naranja ocultar" data-id="${p.id}">Finalizar</button>
       </div>
       <div class="comanda-meta">
         <span><b>Mesa:</b> ${p.mesa}</span>
@@ -55,9 +49,8 @@ async function cargar() {
   try {
     const res = await fetch("/api/pedidos?estado=cobrado&limit=500");
     const pedidos = await res.json();
-    const ocultos = getOcultos();
     const porPreparar = pedidos
-      .filter((p) => p.estado === "cobrado" && !ocultos.has(p.id))
+      .filter((p) => p.estado === "cobrado")
       .sort((a, b) => b.id - a.id);
     const cobrados = porPreparar.filter(filtrarComanda);
     const resaltarBusqueda = (textoBusqueda.length > 0) && porPreparar.length !== cobrados.length;
@@ -79,15 +72,19 @@ async function cargar() {
         .map((p) => tarjetaCocina(p, nuevos.some((n) => n.id === p.id)))
         .join("");
       zona.querySelectorAll(".ocultar").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const ocultos = getOcultos();
-          ocultos.add(Number(btn.dataset.id));
-          guardarOcultos(ocultos);
-          btn.closest(".tarjeta").remove();
-          const actuales = document.querySelectorAll("#zona-pedidos .tarjeta").length;
-          $("#contador").textContent = actuales + " pedido(s) por preparar";
-          if (actuales === 0) {
-            $("#zona-pedidos").innerHTML = '<div class="vacio">Esperando pedidos...</div>';
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          try {
+            await finalizarPedido(btn.dataset.id);
+            btn.closest(".tarjeta").remove();
+            const actuales = document.querySelectorAll("#zona-pedidos .tarjeta").length;
+            $("#contador").textContent = actuales + " pedido(s) por preparar";
+            if (actuales === 0) {
+              $("#zona-pedidos").innerHTML = '<div class="vacio">Esperando pedidos...</div>';
+            }
+          } catch (e) {
+            alert("Error: " + e.message);
+            btn.disabled = false;
           }
         });
       });

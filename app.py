@@ -253,7 +253,7 @@ def generar_numero():
         n += 1
 
 
-ESTADOS_PEDIDO = ("pendiente", "cobrado", "cancelado")
+ESTADOS_PEDIDO = ("pendiente", "cobrado", "cancelado", "finalizado")
 
 
 def _placeholders(n):
@@ -741,13 +741,29 @@ def api_cancelar_pedido(pid):
     return jsonify({"ok": True})
 
 
+@app.post("/api/pedidos/<int:pid>/finalizar")
+def api_finalizar_pedido(pid):
+    db = get_db()
+    pedido = db.execute("SELECT estado FROM pedido WHERE id=?", (pid,)).fetchone()
+    if not pedido:
+        abort(404, "Pedido no encontrado")
+    estado = pedido["estado"]
+    if estado == "finalizado":
+        return jsonify({"ok": True, "ya_finalizado": True})
+    if estado != "cobrado":
+        abort(400, "Solo se puede finalizar un pedido cobrado")
+    db.execute("UPDATE pedido SET estado='finalizado' WHERE id=?", (pid,))
+    db.commit()
+    return jsonify({"ok": True})
+
+
 # ============ VENTAS ============
 @app.get("/api/ventas")
 def api_ventas():
     db = get_db()
     filas = db.execute(
         "SELECT COALESCE(metodo_pago, 'sin_registrar') AS metodo_pago, SUM(total) AS total "
-        "FROM pedido WHERE estado='cobrado' GROUP BY metodo_pago"
+        "FROM pedido WHERE estado IN ('cobrado', 'finalizado') GROUP BY metodo_pago"
     ).fetchall()
     ventas = {"efectivo": 0, "transferencia": 0, "sin_registrar": 0, "total": 0}
     for f in filas:

@@ -316,7 +316,9 @@ function renderMisPedidos(pedidos) {
   pedidos.forEach((p) => {
     const div = document.createElement("div");
     div.className = "mis-pedidos-item";
-    const estado = p.estado === "cobrado"
+    const estado = p.estado === "finalizado"
+      ? '<span class="badge finalizado">Finalizado</span>'
+      : p.estado === "cobrado"
       ? '<span class="badge cobrado">Cobrado</span>'
       : p.estado === "cancelado"
       ? '<span class="badge cancelado">Cancelado</span>'
