@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 scau.db*
 notas
+.env
+.env.local
 
 test_stress/
 monitor/

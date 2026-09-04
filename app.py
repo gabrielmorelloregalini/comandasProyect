@@ -19,9 +19,9 @@ def ahora():
 
 # ============ CONFIGURACION ============
 # Alias de Mercado Pago que se muestra junto al total de la comanda.
-MP_ALIAS = "scau.ejemplo.alias"
+MP_ALIAS = os.environ.get("MP_ALIAS", "scau.ejemplo.alias")
 # Contrasena para entrar a /caja (cambiala a gusto).
-CAJA_PASSWORD = "soylacaja"
+CAJA_PASSWORD = os.environ.get("CAJA_PASSWORD", "soylacaja")
 # Contrasena para /monitor (solo vos)
 MONITOR_PASSWORD = os.environ.get("MONITOR_PASSWORD", "soyelmonitor")
 # =======================================
