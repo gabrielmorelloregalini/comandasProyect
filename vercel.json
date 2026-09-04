@@ -8,7 +8,7 @@
   ],
   "crons": [
     {
-      "path": "/api/monitor/cron?key=soyelmonitor",
+      "path": "/api/monitor/cron",
       "schedule": "*/5 * * * *"
     }
   ]

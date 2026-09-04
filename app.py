@@ -783,6 +783,9 @@ def _check_monitor_auth():
         return True
     if request.headers.get("X-Monitor-Key") == MONITOR_PASSWORD:
         return True
+    # Vercel Cron envía este header automáticamente
+    if request.headers.get("x-vercel-cron") == "1" or request.headers.get("X-Vercel-Cron") == "1":
+        return True
     return False
 
 
@@ -858,7 +861,7 @@ def _check_and_alert(force=False):
     should = any(v > 70 for v in pct.values()) if pct else False
     alerted = False
     info = None
-    if (should or force) and pct:
+    if should or force:
         db = get_db()
         fila = db.execute("SELECT valor FROM configuracion WHERE clave='monitor_last_alert'").fetchone()
         last = fila["valor"] if fila else None
