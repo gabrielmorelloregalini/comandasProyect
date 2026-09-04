@@ -27,6 +27,7 @@ MONITOR_PASSWORD = os.environ.get("MONITOR_PASSWORD", "soyelmonitor")
 # =======================================
 
 _CAJA_TOKEN = os.environ.get("CAJA_TOKEN") or secrets.token_urlsafe(32)
+_MONITOR_TOKEN = os.environ.get("MONITOR_TOKEN") or secrets.token_urlsafe(32)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS producto (
@@ -779,12 +780,15 @@ def api_cancelar_pedido(pid):
 
 # ============ MONITOR (Vercel + WhatsApp) ============
 def _check_monitor_auth():
-    if request.args.get("key") == MONITOR_PASSWORD:
+    if request.cookies.get("monitor_token") == _MONITOR_TOKEN:
         return True
     if request.headers.get("X-Monitor-Key") == MONITOR_PASSWORD:
         return True
     # Vercel Cron envía este header automáticamente
     if request.headers.get("x-vercel-cron") == "1" or request.headers.get("X-Vercel-Cron") == "1":
+        return True
+    # compatibilidad con ?key=... (no se muestra en el front)
+    if request.args.get("key") == MONITOR_PASSWORD:
         return True
     return False
 
@@ -919,9 +923,24 @@ def _check_and_alert(force=False):
 
 @app.get("/monitor")
 def pagina_monitor():
-    if not _check_monitor_auth():
-        abort(401, "No autorizado - usa ?key=soyelmonitor")
+    if request.cookies.get("monitor_token") != _MONITOR_TOKEN:
+        return redirect(url_for("monitor_login"))
     return render_template("monitor.html")
+
+
+@app.get("/monitor/login")
+def monitor_login():
+    return render_template("monitor_login.html", error=None)
+
+
+@app.post("/monitor/login")
+def monitor_login_post():
+    clave = (request.form.get("clave") or "").strip()
+    if not secrets.compare_digest(clave, MONITOR_PASSWORD):
+        return render_template("monitor_login.html", error="Contraseña incorrecta."), 401
+    resp = make_response(redirect(url_for("pagina_monitor")))
+    resp.set_cookie("monitor_token", _MONITOR_TOKEN, httponly=True, samesite="Lax", max_age=60 * 60 * 12)
+    return resp
 
 
 @app.get("/api/monitor")

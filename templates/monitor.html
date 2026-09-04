@@ -39,16 +39,12 @@
   </details>
 
   <div class="aviso" style="margin-top:12px;">
-    Protegido con <code>?key=soyelmonitor</code> — cron casero: recarga automática cada 5 min y consulta a Vercel.
-    WhatsApp → +5491126675720 vía CallMeBot.
+    Actualización automática cada 5 min. Alerta WhatsApp al superar 70%.
   </div>
 </main>
 <script>
-const params = new URLSearchParams(location.search);
-const KEY = params.get("key") || "";
 async function api(path) {
-  const sep = path.includes("?") ? "&" : "?";
-  const res = await fetch(path + sep + "key=" + encodeURIComponent(KEY));
+  const res = await fetch(path);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -86,15 +82,11 @@ async function cargar(force=false) {
 }
 document.getElementById("btn-refrescar").addEventListener("click", ()=>cargar(false));
 document.getElementById("btn-probar").addEventListener("click", async ()=>{
-  if (!confirm("¿Enviar prueba de WhatsApp a +5491126675720?")) return;
+  if (!confirm("¿Enviar prueba de WhatsApp?")) return;
   await cargar(true);
 });
-if (!KEY) {
-  document.getElementById("monitor-estado").textContent = "Falta ?key=soyelmonitor en la URL";
-} else {
-  cargar(false);
-  setInterval(()=>cargar(false), 5*60*1000);
-}
+cargar(false);
+setInterval(()=>cargar(false), 5*60*1000);
 </script>
 </body>
 </html>

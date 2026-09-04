@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitor - Acceso</title>
+<link rel="stylesheet" href="/static/style.css?v=6">
+</head>
+<body>
+<header class="barra">
+  <h1>Monitor</h1>
+  <div class="sub">Zona restringida</div>
+</header>
+
+<main class="container">
+  <div class="tarjeta" style="max-width:360px;margin:24px auto;">
+    <h2 class="seccion-titulo">Ingresá la contraseña</h2>
+    <p style="color:#7a8a82;font-size:0.9rem;margin-bottom:12px;">
+      Esta sección es solo para el administrador del monitor.
+    </p>
+    {% if error %}
+      <div class="aviso">{{ error }}</div>
+    {% endif %}
+    <form method="post" action="/monitor/login" autocomplete="off">
+      <div class="campo">
+        <label for="clave">Contraseña</label>
+        <input type="password" id="clave" name="clave" placeholder="••••••••" required autofocus>
+      </div>
+      <div class="fila-accion">
+        <button type="submit" class="btn btn-primario">Entrar</button>
+        <a href="/" class="btn btn-borde" style="text-align:center;text-decoration:none;">Volver</a>
+      </div>
+    </form>
+  </div>
+</main>
+</body>
+</html>
