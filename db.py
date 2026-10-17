@@ -68,6 +68,9 @@ class _SqliteConn:
     def insert(self, sql, params=()):
         return self._conn.execute(sql, tuple(params)).lastrowid
 
+    def executemany(self, sql, seq):
+        self._conn.executemany(sql, [tuple(p) for p in seq])
+
     def commit(self):
         self._conn.commit()
 

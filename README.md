@@ -1,114 +1,83 @@
 # Comandas del evento
 
-Sistema de comandas para un evento scout. Los meseros toman pedidos desde su celular, la
-caja los confirma como cobrados y la cocina ve los pedidos para preparar.
+Sistema de comandas para un evento scout. Los meseros toman pedidos desde el celular, la caja los
+confirma como cobrados y la cocina ve los pedidos ya cobrados para prepararlos.
 
-## Roles y URLs
+## Resumen
 
-| Rol | URL | Quien lo usa |
+Web app en **Flask** (un solo archivo, `app.py`) con una pequeña capa de datos (`db.py`) que funciona
+tanto sobre **SQLite** (local) como sobre **PostgreSQL** (en producción, vía la variable
+`DATABASE_URL`). El frontend es JS vanilla servido desde `static/` + plantillas en `templates/`.
+
+Tres pantallas, cada una con su URL:
+
+| Pantalla | URL | Quién la usa |
 |---|---|---|
-| Tomar pedidos | `/` | Meseros (camis/rovers), desde su celular |
-| Caja | `/caja` | Adultos en caja (PC) |
-| Cocina | `/cocina` | Adultos en cocina (PC) |
+| Tomar pedidos | `/` | Meseros, desde el celular |
+| Caja | `/caja` | Caja (protegida con contraseña) |
+| Cocina | `/cocina` | Cocina |
 
-## Flujo
+**Flujo:** el mesero arma el pedido (mesa asignada, comensal y productos) → se genera un número y el
+total → cobra mostrando el alias de Mercado Pago → la **caja** marca el pedido como *cobrado* → recién
+ahí aparece en **cocina**, que lo prepara y lo entrega por número.
 
-1. El mesero entra a `/` y elige su nombre.
-2. Arma el pedido: mesa (de las que tiene asignadas), nombre del comensal y productos.
-3. Confirma el pedido. El sistema genera el **número de pedido (hora:min:seg)** y calcula el **total**.
-   En la pantalla ve el total y el **alias de Mercado Pago** para cobrar.
-4. El mesero cobra (efectivo o transferencia) y le avisa el número al comensal.
-5. La caja (`/caja`) ve la comanda pendiente y la marca como **"Cobrado"**.
-6. Recién entonces la comanda aparece en la cocina (`/cocina`). El cocinero la prepara,
-   la entrega con el número y la oculta de pantalla.
-7. El mesero sigue sus pedidos en "Mis pedidos" para saber cuál retirar.
+El primer arranque carga datos de ejemplo (productos, mesas, aderezos y meseros), todos editables
+desde `/caja`.
 
-## Requisitos
+## Correr en local
 
-- Python 3.8 o superior
-- Dependencias: `pip install -r requirements.txt` (flask y waitress)
-
-## Correr en local (para probar)
+Requiere Python 3.9+.
 
 ```bash
-python3 app.py
+pip install -r requirements.txt
+python app.py
 ```
 
-Abrir `http://localhost:5000/` (pedidos), `http://localhost:5000/caja` (caja) y
-`http://localhost:5000/cocina` (cocina).
+Queda en `http://localhost:5000/` (pedidos), `/caja` y `/cocina`. Usa SQLite en `scau.db`.
 
-> Nota: este modo usa el servidor de desarrollo de Flask. Sirve para probar.
-> Para el evento usar el servidor de producción (ver abajo).
-
-## Servidor de producción (Linux/Windows)
-
-El sistema está pensado para ~50 usuarios simultáneos. Se sirve con **waitress**
-(servidor WSGI multihilo, SQLite en modo WAL para escrituras concurrentes):
-
-```bash
-waitress-serve --listen=0.0.0.0:5000 --threads=16 app:app
-```
-
-- Los celulares de los meseros acceden a `http://IP-DE-LA-PC:5000/`.
-- La caja a `http://IP-DE-LA-PC:5000/caja` y la cocina a `.../cocina`.
-- `--threads` define cuántas peticiones atiende en paralelo (16 alcanza de sobra).
-
-### Correr como servicio (Linux con systemd)
-
-Crear `/etc/systemd/system/comandas.service`:
-
-```ini
-[Unit]
-Description=Sistema de comandas del evento
-After=network.target
-
-[Service]
-WorkingDirectory=/ruta/al/proyecto
-ExecStart=/ruta/a/waitress-serve --listen=0.0.0.0:5000 --threads=16 app:app
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl enable --now comandas
-```
-
-### Correr como servicio (Windows)
-
-Guardar un acceso directo que ejecute
-`waitress-serve --listen=0.0.0.0:5000 --threads=16 app:app`
-desde la carpeta del proyecto y dejarlo en el inicio de sesión. Recordar abrir el
-puerto 5000 en el firewall.
-
-## Configuración
-
-- **Alias de Mercado Pago**: se cambia en `app.py`, en la constante `MP_ALIAS`.
-- **Datos de ejemplo**: el primer arranque carga productos, mesas y meseros de ejemplo.
-  Se pueden editar desde la pestaña correspondiente en `/caja`.
-
-## Resetear la base
-
-Detener el servidor y borrar el archivo `scau.db` (y los `scau.db-wal`/`scau.db-shm`
-si existen). Se vuelve a crear con los datos de ejemplo en el próximo arranque.
+Para resetear la base: detener la app y borrar el archivo.
 
 ```bash
 rm scau.db scau.db-wal scau.db-shm
 ```
 
-## Despliegue en el evento (acceso desde otros dispositivos)
+### Variables de entorno (opcional en local)
 
-El servidor escucha en todas las interfaces (`0.0.0.0:5000`), así que funciona igual en
-la red local sin cambiar nada. Opciones:
+Copiar `.env.example` a `.env` y ajustar. Las más usadas:
 
-- **LAN**: todos los dispositivos conectados a la misma WiFi acceden a
-  `http://IP-DE-LA-PC:5000/...`. Hay que abrir el puerto 5000 en el firewall de la PC.
-- **Túnel público**: correr `cloudflared tunnel --url http://localhost:5000` para tener una
-  URL HTTPS pública si la WiFi aísla dispositivos entre sí.
-- **Hosting en la nube**: subir el mismo proyecto a Render/Railway/Fly.io si no se quiere
-  depender de una PC prendida durante el evento.
+- `MP_ALIAS` — alias de Mercado Pago que se muestra al cobrar (también editable desde `/caja`).
+- `CAJA_PASSWORD` — contraseña de `/caja`.
+- `MONITOR_PASSWORD` — contraseña de `/monitor` (panel de uso de Vercel).
 
-Notas:
-- Probar todo con una PC real del evento una semana antes.
-- Al terminar, respaldar el archivo `scau.db` (contiene todos los pedidos).
+Sin `.env` la app arranca igual con valores por defecto.
+
+## Deploy en Vercel
+
+El repo ya está listo para Vercel: `api/index.py` envuelve la app Flask y `vercel.json` rutea todo
+el tráfico a ese handler.
+
+1. **Base de datos.** Crear una Postgres (p. ej. [Neon](https://neon.tech)) y copiar su connection
+   string. En serverless no se puede usar SQLite, así que `DATABASE_URL` es obligatoria.
+
+2. **Importar el repo en Vercel** (New Project → importar este repositorio). El framework se detecta
+   solo por `vercel.json`; no hace falta build command.
+
+3. **Cargar las variables de entorno** en *Settings → Environment Variables*:
+
+   | Variable | Para qué | ¿Obligatoria? |
+   |---|---|---|
+   | `DATABASE_URL` | Postgres (Neon) | **Sí** |
+   | `MP_ALIAS` | Alias de Mercado Pago | Sí |
+   | `CAJA_PASSWORD` | Contraseña de `/caja` | Sí |
+   | `MONITOR_PASSWORD` | Contraseña de `/monitor` | Sí |
+   | `CAJA_TOKEN`, `MONITOR_TOKEN` | Mantener la sesión entre instancias serverless (ver nota) | Recomendadas |
+   | `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, `VERCEL_PROJECT_ID` | Panel `/monitor` de uso de Vercel | Opcionales |
+   | `CALLMEBOT_PHONE`, `CALLMEBOT_APIKEY` | Alertas de WhatsApp al 70% de uso | Opcionales |
+
+4. **Deploy.** Cada push a la rama conectada redepliega. Al terminar, las URLs son
+   `https://TU-PROYECTO.vercel.app/`, `/caja` y `/cocina`.
+
+> **Nota sobre el login:** los tokens de sesión de `/caja` y `/monitor` se generan por proceso. Como
+> Vercel levanta varias instancias, hay que fijar `CAJA_TOKEN` y `MONITOR_TOKEN` (cualquier string
+> secreto largo) para que la cookie de login siga siendo válida en todas. Sin ellas, el login se
+> "pierde" al cambiar de instancia.
